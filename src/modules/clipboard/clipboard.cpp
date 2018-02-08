@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2012~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2012~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #include <fcntl.h>
 
 #include "clipboard.h"
@@ -199,6 +199,13 @@ Clipboard::Clipboard(Instance *instance)
                     }
                     return;
                 }
+                if (keyEvent.key().check(FcitxKey_space)) {
+                    keyEvent.accept();
+                    if (candidateList->size() > 0) {
+                        candidateList->candidate(0)->select(inputContext);
+                    }
+                    return;
+                }
 
                 if (keyEvent.key().checkKeyList(
                         instance_->globalConfig().defaultPrevPage())) {
@@ -295,13 +302,7 @@ void Clipboard::updateUI(InputContext *inputContext) {
     inputContext->updateUserInterface(UserInterfaceComponent::InputPanel);
 }
 
-void Clipboard::reloadConfig() {
-    auto configFile = StandardPath::global().open(
-        StandardPath::Type::PkgConfig, "conf/clipboard.conf", O_RDONLY);
-    RawConfig config;
-    readFromIni(config, configFile.fd());
-    config_.load(config);
-}
+void Clipboard::reloadConfig() { readAsIni(config_, "conf/clipboard.conf"); }
 
 void Clipboard::primaryChanged(const std::string &name) {
     primaryCallback_ = xcb_->call<IXCBModule::convertSelection>(
@@ -333,9 +334,8 @@ void Clipboard::clipboardChanged(const std::string &name) {
                         break;
                     }
                 }
-                while (history_.size() &&
-                       static_cast<int>(history_.size()) >
-                           config_.numOfEntries.value()) {
+                while (history_.size() && static_cast<int>(history_.size()) >
+                                              config_.numOfEntries.value()) {
                     history_.pop_back();
                 }
             }
@@ -361,6 +361,6 @@ class ClipboardModuleFactory : public AddonFactory {
         return new Clipboard(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::ClipboardModuleFactory);

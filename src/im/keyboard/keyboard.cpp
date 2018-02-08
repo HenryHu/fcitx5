@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "keyboard.h"
 #include "chardata.h"
@@ -158,7 +158,7 @@ static std::string findBestLanguage(const IsoCodes &isocodes,
     }
     return {};
 }
-}
+} // namespace
 
 KeyboardEngine::KeyboardEngine(Instance *instance) : instance_(instance) {
     registerDomain("xkeyboard-config", XKEYBOARDCONFIG_DATADIR "/locale");
@@ -191,6 +191,7 @@ KeyboardEngine::~KeyboardEngine() {}
 
 std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
     std::vector<InputMethodEntry> result;
+    bool usExists;
     for (auto &p : xkbRules_.layoutInfos()) {
         auto &layoutInfo = p.second;
         auto language = findBestLanguage(isoCodes_, layoutInfo.description,
@@ -199,6 +200,9 @@ std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
             fmt::format(_("Keyboard - {0}"),
                         D_("xkeyboard-config", layoutInfo.description));
         auto uniqueName = imNamePrefix + layoutInfo.name;
+        if (uniqueName == "keyboard-us") {
+            usExists = true;
+        }
         result.push_back(std::move(
             InputMethodEntry(uniqueName, description, language, "keyboard")
                 .setLabel(layoutInfo.name)
@@ -220,6 +224,52 @@ std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
                     .setLabel(layoutInfo.name)
                     .setIcon("input-keyboard")));
         }
+    }
+
+    if (result.empty()) {
+        RawConfig config;
+        readAsIni(config, "conf/cached_layouts");
+        for (auto &uniqueName : config.subItems()) {
+            auto desc = config.valueByPath(
+                stringutils::joinPath(uniqueName, "Description"));
+            auto lang = config.valueByPath(
+                stringutils::joinPath(uniqueName, "Language"));
+            auto label =
+                config.valueByPath(stringutils::joinPath(uniqueName, "Label"));
+            if (desc && lang && label) {
+                if (uniqueName == "keyboard-us") {
+                    usExists = true;
+                }
+                result.push_back(
+                    std::move(InputMethodEntry(
+                                  uniqueName,
+                                  fmt::format(_("{0} (Not Available)"), *desc),
+                                  *lang, "keyboard")
+                                  .setLabel(*label)
+                                  .setIcon("input-keyboard")));
+            }
+        }
+    } else {
+        RawConfig config;
+        for (auto &item : result) {
+            config.setValueByPath(
+                stringutils::joinPath(item.uniqueName(), "Description"),
+                item.name());
+            config.setValueByPath(
+                stringutils::joinPath(item.uniqueName(), "Language"),
+                item.languageCode());
+            config.setValueByPath(
+                stringutils::joinPath(item.uniqueName(), "Label"),
+                item.label());
+        }
+        safeSaveAsIni(config, "conf/cached_layouts");
+    }
+    if (!usExists) {
+        result.push_back(std::move(
+            InputMethodEntry("keyboard-us", _("Keyboard"), "en", "keyboard")
+                .setLabel("us")
+                .setIcon("input-keyboard")
+                .setConfigurable(true)));
     }
     return result;
 }
@@ -353,8 +403,9 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
         // check for valid character
         if (validCharacter || event.key().isSimple() || validSym) {
             if (validCharacter || event.key().isLAZ() || event.key().isUAZ() ||
-                validSym || (!buffer.empty() &&
-                             event.key().checkKeyList(FCITX_HYPHEN_APOS))) {
+                validSym ||
+                (!buffer.empty() &&
+                 event.key().checkKeyList(FCITX_HYPHEN_APOS))) {
                 auto preedit = preeditString(inputContext);
                 if (preedit != buffer.userInput()) {
                     buffer.clear();
@@ -517,4 +568,4 @@ bool KeyboardEngine::foreachVariant(
     }
     return true;
 }
-}
+} // namespace fcitx

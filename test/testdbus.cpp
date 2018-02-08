@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the  file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the  file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #include "fcitx-utils/dbus/bus.h"
 #include "fcitx-utils/dbus/variant.h"
 #include "fcitx-utils/event.h"
@@ -90,6 +90,7 @@ void client() {
     std::unique_ptr<Slot> slot(clientBus.addMatch(
         MatchRule(TEST_SERVICE, "", TEST_INTERFACE, "testSignal"),
         [&loop](dbus::Message message) {
+            FCITX_INFO() << "testSignal";
             std::vector<DBusStruct<std::string, int>> data;
             message >> data;
             FCITX_ASSERT(data.size() == 1);
@@ -142,6 +143,7 @@ void client() {
     std::unique_ptr<EventSourceTime> s4(loop.addTimeEvent(
         CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 300000, 0,
         [&clientBus](EventSource *, uint64_t) {
+            FCITX_INFO() << "test4";
             auto msg = clientBus.createMethodCall(TEST_SERVICE, "/test",
                                                   TEST_INTERFACE, "test4");
             msg << Variant(123);
@@ -150,7 +152,7 @@ void client() {
             reply >> Container(Container::Type::Variant, Signature("s"));
             std::string s;
             reply >> s;
-            FCITX_LOG(Info) << s;
+            FCITX_INFO() << s;
             FCITX_ASSERT(s == "123");
             reply >> ContainerEnd();
             return false;
@@ -165,18 +167,19 @@ void client() {
             v.emplace_back("a", "defg");
 
             msg << v;
-            FCITX_LOG(Info) << msg.signature();
+            FCITX_INFO() << msg.signature();
             auto reply = msg.call(0);
             FCITX_ASSERT(reply.type() == MessageType::Reply);
             std::string s;
             reply >> s;
-            FCITX_LOG(Info) << s;
+            FCITX_INFO() << s;
             FCITX_ASSERT(s == "defg");
             return false;
         }));
     std::unique_ptr<EventSourceTime> s6(loop.addTimeEvent(
         CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 500000, 0,
         [&clientBus, &loop](EventSource *, uint64_t) {
+            FCITX_INFO() << "test3";
             auto msg = clientBus.createMethodCall(TEST_SERVICE, "/test",
                                                   TEST_INTERFACE, "test3");
             msg << 2;
@@ -187,11 +190,13 @@ void client() {
             reply >> ret;
             FCITX_ASSERT(std::get<0>(ret) == 1);
             FCITX_ASSERT(std::get<1>(ret) == 3);
+            FCITX_INFO() << "test3 ret";
             return false;
         }));
     std::unique_ptr<EventSourceTime> s7(
         loop.addTimeEvent(CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 400000, 0,
                           [&clientBus, &loop](EventSource *, uint64_t) {
+                              FCITX_INFO() << "testProperty";
                               auto msg = clientBus.createMethodCall(
                                   TEST_SERVICE, "/test",
                                   "org.freedesktop.DBus.Properties", "Get");
@@ -215,9 +220,8 @@ int main() {
     }
     EventLoop loop;
     bus.attachEventLoop(&loop);
-    if (!bus.requestName(TEST_SERVICE,
-                         {RequestNameFlag::AllowReplacement,
-                          RequestNameFlag::ReplaceExisting})) {
+    if (!bus.requestName(TEST_SERVICE, {RequestNameFlag::AllowReplacement,
+                                        RequestNameFlag::ReplaceExisting})) {
         return 1;
     }
     TestObject obj;

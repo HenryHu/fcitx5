@@ -5,13 +5,14 @@
 # Translators:
 # csslayer <wengxt@gmail.com>, 2017
 # Bon Keun Seo <scobyseo@gmail.com>, 2017
+# heavyuser <heavyuser73@gmail.com>, 2018
 msgid ""
 msgstr ""
 "Project-Id-Version: fcitx5\n"
 "Report-Msgid-Bugs-To: fcitx-dev@googlegroups.com\n"
-"POT-Creation-Date: 2017-11-24 10:15-0800\n"
+"POT-Creation-Date: 2018-01-04 00:01-0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Bon Keun Seo <scobyseo@gmail.com>, 2017\n"
+"Last-Translator: heavyuser <heavyuser73@gmail.com>, 2018\n"
 "Language-Team: Korean (https://www.transifex.com/fcitx/teams/12005/ko/)\n"
 "Language: ko\n"
 "MIME-Version: 1.0\n"
@@ -19,7 +20,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: src/lib/fcitx/instance.cpp:1496
+#: src/lib/fcitx/instance.cpp:1548
 msgid "(Not available)"
 msgstr "(사용할 수 없음)"
 
@@ -43,46 +44,185 @@ msgstr "<개인사용>"
 msgid "<not assigned>"
 msgstr "<할당 안됨>"
 
-#: src/lib/fcitx/globalconfig.cpp:60
+#: src/lib/fcitx/globalconfig.cpp:76
 msgid "Activate Input Method"
 msgstr "입력기 활성화"
 
-#: src/lib/fcitx/globalconfig.cpp:75
+#: src/lib/fcitx/globalconfig.cpp:104
 msgid "Active By Default"
 msgstr "디폴트 활성 상태"
+
+#: src/lib/fcitx-utils/key.cpp:119
+msgctxt "Key name"
+msgid "Add Favorite"
+msgstr "즐겨찾기 추가"
 
 #: src/modules/unicode/unicode.conf.in:4
 msgid "Add Unicode Typing Support"
 msgstr "유니코드 입력 지원 추가"
 
+#: src/lib/fcitx-utils/key.cpp:121
+msgctxt "Key name"
+msgid "Adjust Brightness"
+msgstr "밝기 조절"
+
+#: src/modules/xcb/xcbmodule.h:42
+msgid "Allow Overriding System XKB Settings"
+msgstr "시스템 XKB 설정을 덮어쓰도록 허용"
+
 #: src/im/keyboard/keyboard.h:42 src/modules/quickphrase/quickphrase.h:39
 msgid "Alt"
 msgstr "Alt"
 
-#: src/lib/fcitx/globalconfig.cpp:38
+#: src/lib/fcitx-utils/key.cpp:433
+msgctxt "Key name"
+msgid "Alt"
+msgstr "Alt"
+
+#: src/lib/fcitx/globalconfig.cpp:41
 msgid "Alternative Trigger Input Method"
 msgstr "대체 트리거 입력 방법"
 
-#: src/lib/fcitx/globalconfig.cpp:90
+#: src/lib/fcitx-utils/key.cpp:126
+msgctxt "Key name"
+msgid "Application Left"
+msgstr "왼쪽 응용 프로그램"
+
+#: src/lib/fcitx-utils/key.cpp:127
+msgctxt "Key name"
+msgid "Application Right"
+msgstr "오른쪽 응용 프로그램"
+
+#: src/lib/fcitx-utils/key.cpp:186
+msgctxt "Key name"
+msgid "Audio Cycle Track"
+msgstr "재생 목록 반복 듣기"
+
+#: src/lib/fcitx-utils/key.cpp:184
+msgctxt "Key name"
+msgid "Audio Random Play"
+msgstr "임의 순서 음원 듣기"
+
+#: src/lib/fcitx-utils/key.cpp:183
+msgctxt "Key name"
+msgid "Audio Repeat"
+msgstr "음원 반복 듣기"
+
+#: src/lib/fcitx-utils/key.cpp:173
+msgctxt "Key name"
+msgid "Away"
+msgstr "자리비움"
+
+#: src/lib/fcitx-utils/key.cpp:68
+msgctxt "Key name"
+msgid "Back"
+msgstr "뒤로"
+
+#: src/lib/fcitx-utils/key.cpp:125
+msgctxt "Key name"
+msgid "Back Forward"
+msgstr "뒤로 앞으로"
+
+#: src/lib/fcitx-utils/key.cpp:52
+msgctxt "Key name"
+msgid "Backspace"
+msgstr "백스페이스"
+
+#: src/lib/fcitx-utils/key.cpp:179
+msgctxt "Key name"
+msgid "Battery"
+msgstr "배터리"
+
+#: src/lib/fcitx/globalconfig.cpp:119
 msgid "Behavior"
 msgstr "동작방식"
+
+#: src/lib/fcitx-utils/key.cpp:197
+msgctxt "Key name"
+msgid "Blue"
+msgstr "파랑"
+
+#: src/lib/fcitx-utils/key.cpp:180
+msgctxt "Key name"
+msgid "Bluetooth"
+msgstr "블루투스"
+
+#: src/lib/fcitx-utils/key.cpp:128
+msgctxt "Key name"
+msgid "Book"
+msgstr "책"
+
+#: src/lib/fcitx-utils/key.cpp:139
+msgctxt "Key name"
+msgid "Browser"
+msgstr "브라우저"
+
+#: src/lib/fcitx-utils/key.cpp:129
+msgctxt "Key name"
+msgid "CD"
+msgstr "CD"
+
+#: src/lib/fcitx-utils/key.cpp:130
+msgctxt "Key name"
+msgid "Calculator"
+msgstr "계산기"
+
+#: src/lib/fcitx-utils/key.cpp:239
+msgctxt "Key name"
+msgid "Cancel"
+msgstr "취소"
+
+#: src/lib/fcitx-utils/key.cpp:63
+msgctxt "Key name"
+msgid "CapsLock"
+msgstr "캡스락"
+
+#: data/fcitx5-configtool.desktop.in.in:5
+msgid "Change Fcitx 5 Configuration"
+msgstr "Fcitx 5 설정 변경"
+
+#: src/im/keyboard/keyboard.h:62
+msgid "Choose key modifier"
+msgstr "변환 키 선택"
 
 #: src/ui/classic/classicui.conf.in:3
 msgid "Classic User Inteface"
 msgstr "클래식 사용자 인터페이스"
 
+#: src/lib/fcitx-utils/key.cpp:131
+msgctxt "Key name"
+msgid "Clear"
+msgstr "지우기"
+
 #: src/modules/clipboard/clipboard.conf.in:3
 msgid "Clipboard"
 msgstr "클립보드"
 
-#: src/modules/clipboard/clipboard.cpp:287
+#: src/modules/clipboard/clipboard.cpp:294
 msgid "Clipboard:"
 msgstr "클립보드:"
 
+#: src/lib/fcitx-utils/key.cpp:132
+msgctxt "Key name"
+msgid "Close"
+msgstr "닫기"
+
+#: src/lib/fcitx-utils/key.cpp:225
+msgctxt "Key name"
+msgid "Code input"
+msgstr "코드 입력"
+
+#: src/lib/fcitx-utils/key.cpp:123
+msgctxt "Key name"
+msgid "Community"
+msgstr "커뮤니티"
+
+#: src/ui/classic/xcbtraywindow.cpp:53
 #: src/modules/notificationitem/dbusmenu.cpp:280
 msgid "Configure"
 msgstr "설정"
 
+#: src/ui/classic/xcbtraywindow.cpp:52
 #: src/modules/notificationitem/dbusmenu.cpp:275
 msgid "Configure Current Input Method"
 msgstr "현재 입력기 설정"
@@ -91,9 +231,24 @@ msgstr "현재 입력기 설정"
 msgid "Control"
 msgstr "Control"
 
+#: src/lib/fcitx-utils/key.cpp:432
+msgctxt "Key name"
+msgid "Control"
+msgstr "Control"
+
+#: src/lib/fcitx-utils/key.cpp:133
+msgctxt "Key name"
+msgid "Copy"
+msgstr "복사"
+
 #: src/modules/spell/spell.h:34
 msgid "Custom"
 msgstr "사용자 설정"
+
+#: src/lib/fcitx-utils/key.cpp:134
+msgctxt "Key name"
+msgid "Cut"
+msgstr "자르기"
 
 #: src/modules/dbus/dbus.conf.in:3
 msgid "DBus"
@@ -103,7 +258,16 @@ msgstr "DBus"
 msgid "DBus Frontend"
 msgstr "DBus 전처리기"
 
-#: src/lib/fcitx/globalconfig.cpp:66
+#: src/modules/notificationitem/notificationitem.conf.in:4
+msgid "DBus based new Freedesktop.org tray icon"
+msgstr "DBus 기반 새 Freedesktop.org 트레이 아이콘"
+
+#: src/lib/fcitx-utils/key.cpp:136
+msgctxt "Key name"
+msgid "DOS"
+msgstr "DOS"
+
+#: src/lib/fcitx/globalconfig.cpp:85
 msgid "Deactivate Input Method"
 msgstr "입력기 비활성화"
 
@@ -112,55 +276,272 @@ msgstr "입력기 비활성화"
 msgid "Default"
 msgstr "기본값"
 
-#: src/lib/fcitx/globalconfig.cpp:71
+#: src/lib/fcitx/globalconfig.cpp:98
 msgid "Default Next page"
 msgstr "기본 다음 페이지"
 
-#: src/lib/fcitx/globalconfig.cpp:69
+#: src/lib/fcitx/globalconfig.cpp:92
 msgid "Default Previous page"
 msgstr "기본 이전 페이지"
 
-#: src/lib/fcitx/globalconfig.cpp:80
+#: src/lib/fcitx/globalconfig.cpp:109
 msgid "Default page size"
 msgstr "페이지 크기 기본값"
 
-#: src/modules/notifications/notifications.cpp:218
+#: src/lib/fcitx-utils/key.cpp:205
+msgctxt "Key name"
+msgid "Delete"
+msgstr "지우기"
+
+#: src/lib/fcitx-utils/key.cpp:135
+msgctxt "Key name"
+msgid "Display"
+msgstr "표시"
+
+#: src/modules/notifications/notifications.cpp:222
 msgid "Do not show again"
 msgstr "다시 보이지 않기"
+
+#: src/lib/fcitx-utils/key.cpp:137
+msgctxt "Key name"
+msgid "Documents"
+msgstr "문서"
+
+#: src/lib/fcitx-utils/key.cpp:60
+msgctxt "Key name"
+msgid "Down"
+msgstr "아래쪽"
+
+#: src/modules/quickphrase/quickphrase.h:53
+msgid "Editor"
+msgstr "편집기"
+
+#: src/lib/fcitx-utils/key.cpp:223
+msgctxt "Key name"
+msgid "Eisu Shift"
+msgstr "영문/숫자 시프트"
+
+#: src/lib/fcitx-utils/key.cpp:224
+msgctxt "Key name"
+msgid "Eisu toggle"
+msgstr "영문/숫자 전환"
+
+#: src/lib/fcitx-utils/key.cpp:112
+msgctxt "Key name"
+msgid "Eject"
+msgstr "꺼내기"
 
 #: src/modules/spell/spell.h:35
 msgid "Enchant"
 msgstr "Enchant"
 
-#: src/lib/fcitx/globalconfig.cpp:46
+#: src/lib/fcitx-utils/key.cpp:56
+msgctxt "Key name"
+msgid "End"
+msgstr "종료"
+
+#: src/lib/fcitx/globalconfig.cpp:55
 msgid "Enumerate Input Method Backward"
 msgstr "입력기를 역순으로 적용"
 
-#: src/lib/fcitx/globalconfig.cpp:42
+#: src/lib/fcitx/globalconfig.cpp:48
 msgid "Enumerate Input Method Forward"
 msgstr "입력기를 순차적으로 적용"
 
-#: src/lib/fcitx/globalconfig.cpp:56
+#: src/lib/fcitx/globalconfig.cpp:69
 msgid "Enumerate Input Method Group Backward"
 msgstr "입력기 그룹을 역순으로 적용"
 
-#: src/lib/fcitx/globalconfig.cpp:51
+#: src/lib/fcitx/globalconfig.cpp:62
 msgid "Enumerate Input Method Group Forward"
 msgstr "입력기 그룹을 순차적으로 적용"
 
+#: src/lib/fcitx-utils/key.cpp:206
+msgctxt "Key name"
+msgid "Escape"
+msgstr "Escape"
+
+#: src/lib/fcitx-utils/key.cpp:240
+msgctxt "Key name"
+msgid "Execute"
+msgstr "실행"
+
+#: src/ui/classic/xcbtraywindow.cpp:55
 #: src/modules/notificationitem/dbusmenu.cpp:293
 msgid "Exit"
 msgstr "나가기"
 
+#: src/lib/fcitx-utils/key.cpp:82
+msgctxt "Key name"
+msgid "Favorites"
+msgstr "즐겨찾기"
+
+#: data/fcitx5.desktop.in.in:3
+msgid "Fcitx 5"
+msgstr "Fcitx 5"
+
+#: data/fcitx5-configtool.desktop.in.in:3
+msgid "Fcitx 5 Configuration"
+msgstr "Fcitx 5 설정"
+
+#: src/lib/fcitx-utils/key.cpp:122
+msgctxt "Key name"
+msgid "Finance"
+msgstr "재무"
+
+#: src/lib/fcitx-utils/key.cpp:200
+msgctxt "Key name"
+msgid "Find"
+msgstr "찾기"
+
+#: src/lib/fcitx-utils/key.cpp:69
+msgctxt "Key name"
+msgid "Forward"
+msgstr "앞으로"
+
+#: src/modules/notifications/notifications.conf.in:4
+msgid "Freedesktop.org Notification Support"
+msgstr "Freedesktop.org 알림 지원"
+
+#: src/lib/fcitx-utils/key.cpp:140
+msgctxt "Key name"
+msgid "Game"
+msgstr "게임"
+
+#: src/lib/fcitx-utils/key.cpp:141
+msgctxt "Key name"
+msgid "Go"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:195
+msgctxt "Key name"
+msgid "Green"
+msgstr "녹색"
+
+#: src/ui/classic/xcbtraywindow.cpp:48
 #: src/modules/notificationitem/dbusmenu.cpp:265
 msgid "Group"
 msgstr "그룹"
 
-#: src/lib/fcitx/instance.cpp:1499
+#: src/lib/fcitx/instance.cpp:1551
 msgid "Group {0}: {1}"
 msgstr "그룹 {0}: {1}"
 
-#: src/lib/fcitx/globalconfig.cpp:88
+#: src/lib/fcitx-utils/key.cpp:228
+msgctxt "Key name"
+msgid "Hangul"
+msgstr "한글"
+
+#: src/lib/fcitx-utils/key.cpp:235
+msgctxt "Key name"
+msgid "Hangul Banja"
+msgstr "한글 반자"
+
+#: src/lib/fcitx-utils/key.cpp:230
+msgctxt "Key name"
+msgid "Hangul End"
+msgstr "한글입력 완료"
+
+#: src/lib/fcitx-utils/key.cpp:231
+msgctxt "Key name"
+msgid "Hangul Hanja"
+msgstr "한글 한자"
+
+#: src/lib/fcitx-utils/key.cpp:232
+msgctxt "Key name"
+msgid "Hangul Jamo"
+msgstr "한글 자모"
+
+#: src/lib/fcitx-utils/key.cpp:234
+msgctxt "Key name"
+msgid "Hangul Jeonja"
+msgstr "한글 전자"
+
+#: src/lib/fcitx-utils/key.cpp:237
+msgctxt "Key name"
+msgid "Hangul PostHanja"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:236
+msgctxt "Key name"
+msgid "Hangul PreHanja"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:233
+msgctxt "Key name"
+msgid "Hangul Romaja"
+msgstr "한글 로마자"
+
+#: src/lib/fcitx-utils/key.cpp:238
+msgctxt "Key name"
+msgid "Hangul Special"
+msgstr "한글 특수문자"
+
+#: src/lib/fcitx-utils/key.cpp:229
+msgctxt "Key name"
+msgid "Hangul Start"
+msgstr "한글입력 시작"
+
+#: src/lib/fcitx-utils/key.cpp:217
+msgctxt "Key name"
+msgid "Hankaku"
+msgstr "반각"
+
+#: src/lib/fcitx-utils/key.cpp:67
+msgctxt "Key name"
+msgid "Help"
+msgstr "도움말"
+
+#: src/lib/fcitx-utils/key.cpp:211
+msgctxt "Key name"
+msgid "Henkan"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:188
+msgctxt "Key name"
+msgid "Hibernate"
+msgstr "하이버네이트"
+
+#: src/modules/notifications/notifications.h:38
+msgid "Hidden Notifications"
+msgstr "감춰진 알림"
+
+#: src/lib/fcitx-utils/key.cpp:213
+msgctxt "Key name"
+msgid "Hiragana"
+msgstr "히라가나"
+
+#: src/lib/fcitx-utils/key.cpp:215
+msgctxt "Key name"
+msgid "Hiragana Katakana"
+msgstr "히라가나 가타가나"
+
+#: src/lib/fcitx-utils/key.cpp:118
+msgctxt "Key name"
+msgid "History"
+msgstr "히스토리"
+
+#: src/lib/fcitx-utils/key.cpp:55
+msgctxt "Key name"
+msgid "Home"
+msgstr "홈"
+
+#: src/lib/fcitx-utils/key.cpp:150
+msgctxt "Key name"
+msgid "Home Office"
+msgstr "홈 오피스"
+
+#: src/lib/fcitx-utils/key.cpp:81
+msgctxt "Key name"
+msgid "Home Page"
+msgstr "홈페이지"
+
+#: src/lib/fcitx-utils/key.cpp:120
+msgctxt "Key name"
+msgid "Hot Links"
+msgstr "핫 링크"
+
+#: src/lib/fcitx/globalconfig.cpp:117
 msgid "Hotkey"
 msgstr "단축키"
 
@@ -168,16 +549,47 @@ msgstr "단축키"
 msgid "IBus Frontend"
 msgstr "IBus 전처리기"
 
+#: src/ui/classic/xcbtraywindow.cpp:50
 #: src/modules/notificationitem/dbusmenu.cpp:259
 #: src/modules/notificationitem/notificationitem.cpp:102
+#: data/fcitx5.desktop.in.in:4
 msgid "Input Method"
 msgstr "입력기"
+
+#: data/fcitx5-configtool.desktop.in.in:4
+msgid "Input Method Configuration"
+msgstr "입력기 설정"
+
+#: src/lib/fcitx-utils/key.cpp:204
+msgctxt "Key name"
+msgid "Insert"
+msgstr "삽입"
 
 #: src/ui/kimpanel/kimpanel.conf.in:3
 msgid "KDE Input Method Panel"
 msgstr "KDE 입력기 패널"
 
-#: src/im/keyboard/keyboard.conf.in:3
+#: src/lib/fcitx-utils/key.cpp:221
+msgctxt "Key name"
+msgid "Kana Lock"
+msgstr "가나 고정"
+
+#: src/lib/fcitx-utils/key.cpp:222
+msgctxt "Key name"
+msgid "Kana Shift"
+msgstr "가나 시프트"
+
+#: src/lib/fcitx-utils/key.cpp:209
+msgctxt "Key name"
+msgid "Kanji"
+msgstr "한자"
+
+#: src/lib/fcitx-utils/key.cpp:214
+msgctxt "Key name"
+msgid "Katakana"
+msgstr "가타가나"
+
+#: src/im/keyboard/keyboard.cpp:269 src/im/keyboard/keyboard.conf.in:3
 msgid "Keyboard"
 msgstr "키보드"
 
@@ -185,11 +597,275 @@ msgstr "키보드"
 msgid "Keyboard - {0}"
 msgstr "키보드 - {0}"
 
-#: src/im/keyboard/keyboard.cpp:214
+#: src/im/keyboard/keyboard.cpp:217
 msgid "Keyboard - {0} - {1}"
 msgstr "키보드 - {0} - {1}"
 
-#: src/modules/clipboard/clipboard.cpp:289
+#: src/lib/fcitx-utils/key.cpp:109
+msgctxt "Key name"
+msgid "Keyboard Brightness Down"
+msgstr "키보드 밝기 낮추기"
+
+#: src/lib/fcitx-utils/key.cpp:107
+msgctxt "Key name"
+msgid "Keyboard Brightness Up"
+msgstr "키보드 밝기 높이기"
+
+#: src/lib/fcitx-utils/key.cpp:106
+msgctxt "Key name"
+msgid "Keyboard Light On/Off"
+msgstr "키보드 불빛 켜고 끄기"
+
+#: src/lib/fcitx-utils/key.cpp:146
+msgctxt "Key name"
+msgid "Keyboard Menu"
+msgstr "키보드 메뉴"
+
+#: src/lib/fcitx-utils/key.cpp:87
+msgctxt "Key name"
+msgid "Launch (0)"
+msgstr "빠른 실행 (0)"
+
+#: src/lib/fcitx-utils/key.cpp:88
+msgctxt "Key name"
+msgid "Launch (1)"
+msgstr "빠른 실행 (1)"
+
+#: src/lib/fcitx-utils/key.cpp:89
+msgctxt "Key name"
+msgid "Launch (2)"
+msgstr "빠른 실행 (2)"
+
+#: src/lib/fcitx-utils/key.cpp:90
+msgctxt "Key name"
+msgid "Launch (3)"
+msgstr "빠른 실행 (3)"
+
+#: src/lib/fcitx-utils/key.cpp:91
+msgctxt "Key name"
+msgid "Launch (4)"
+msgstr "빠른 실행 (4)"
+
+#: src/lib/fcitx-utils/key.cpp:92
+msgctxt "Key name"
+msgid "Launch (5)"
+msgstr "빠른 실행 (5)"
+
+#: src/lib/fcitx-utils/key.cpp:93
+msgctxt "Key name"
+msgid "Launch (6)"
+msgstr "빠른 실행 (6)"
+
+#: src/lib/fcitx-utils/key.cpp:94
+msgctxt "Key name"
+msgid "Launch (7)"
+msgstr "빠른 실행 (7)"
+
+#: src/lib/fcitx-utils/key.cpp:95
+msgctxt "Key name"
+msgid "Launch (8)"
+msgstr "빠른 실행 (8)"
+
+#: src/lib/fcitx-utils/key.cpp:96
+msgctxt "Key name"
+msgid "Launch (9)"
+msgstr "빠른 실행 (9)"
+
+#: src/lib/fcitx-utils/key.cpp:97
+msgctxt "Key name"
+msgid "Launch (A)"
+msgstr "빠른 실행 (A)"
+
+#: src/lib/fcitx-utils/key.cpp:98
+msgctxt "Key name"
+msgid "Launch (B)"
+msgstr "빠른 실행 (B)"
+
+#: src/lib/fcitx-utils/key.cpp:99
+msgctxt "Key name"
+msgid "Launch (C)"
+msgstr "빠른 실행 (C)"
+
+#: src/lib/fcitx-utils/key.cpp:100
+msgctxt "Key name"
+msgid "Launch (D)"
+msgstr "빠른 실행 (D)"
+
+#: src/lib/fcitx-utils/key.cpp:101
+msgctxt "Key name"
+msgid "Launch (E)"
+msgstr "빠른 실행 (E)"
+
+#: src/lib/fcitx-utils/key.cpp:102
+msgctxt "Key name"
+msgid "Launch (F)"
+msgstr "빠른 실행 (F)"
+
+#: src/lib/fcitx-utils/key.cpp:86
+msgctxt "Key name"
+msgid "Launch Mail"
+msgstr "메일 프로그램 실행"
+
+#: src/lib/fcitx-utils/key.cpp:57
+msgctxt "Key name"
+msgid "Left"
+msgstr "왼쪽"
+
+#: src/lib/fcitx-utils/key.cpp:42
+msgctxt "Key name"
+msgid "Left Alt"
+msgstr "왼쪽 Alt"
+
+#: src/lib/fcitx-utils/key.cpp:46
+msgctxt "Key name"
+msgid "Left Control"
+msgstr "왼쪽 Control"
+
+#: src/lib/fcitx-utils/key.cpp:44
+msgctxt "Key name"
+msgid "Left Shift"
+msgstr "왼쪽 시프트"
+
+#: src/lib/fcitx-utils/key.cpp:48
+msgctxt "Key name"
+msgid "Left Super"
+msgstr "왼쪽 윈도우키"
+
+#: src/lib/fcitx-utils/key.cpp:116
+msgctxt "Key name"
+msgid "LightBulb"
+msgstr "전구"
+
+#: src/lib/fcitx-utils/key.cpp:143
+msgctxt "Key name"
+msgid "Logoff"
+msgstr "로그오프"
+
+#: src/lib/fcitx-utils/key.cpp:176
+msgctxt "Key name"
+msgid "Mail Forward"
+msgstr "이메일 전달"
+
+#: src/lib/fcitx-utils/key.cpp:144
+msgctxt "Key name"
+msgid "Market"
+msgstr "마켓"
+
+#: src/lib/fcitx-utils/key.cpp:220
+msgctxt "Key name"
+msgid "Massyo"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:182
+msgctxt "Key name"
+msgid "Media Fast Forward"
+msgstr "음악 빠르게 넘어가기"
+
+#: src/lib/fcitx-utils/key.cpp:78
+msgctxt "Key name"
+msgid "Media Next"
+msgstr "다음 음원 재생"
+
+#: src/lib/fcitx-utils/key.cpp:80
+msgctxt "Key name"
+msgid "Media Pause"
+msgstr "재생 잠시 중단"
+
+#: src/lib/fcitx-utils/key.cpp:75
+msgctxt "Key name"
+msgid "Media Play"
+msgstr "음원 재생"
+
+#: src/lib/fcitx-utils/key.cpp:77
+msgctxt "Key name"
+msgid "Media Previous"
+msgstr "이전 음원 재생"
+
+#: src/lib/fcitx-utils/key.cpp:79
+msgctxt "Key name"
+msgid "Media Record"
+msgstr "녹음하기"
+
+#: src/lib/fcitx-utils/key.cpp:124
+msgctxt "Key name"
+msgid "Media Rewind"
+msgstr "음원 되감기"
+
+#: src/lib/fcitx-utils/key.cpp:76
+msgctxt "Key name"
+msgid "Media Stop"
+msgstr "재생 중지"
+
+#: src/lib/fcitx-utils/key.cpp:145
+msgctxt "Key name"
+msgid "Meeting"
+msgstr "미팅"
+
+#: src/lib/fcitx-utils/key.cpp:66
+msgctxt "Key name"
+msgid "Menu"
+msgstr "메뉴"
+
+#: src/lib/fcitx-utils/key.cpp:147
+msgctxt "Key name"
+msgid "Menu PB"
+msgstr "메뉴 PB"
+
+#: src/lib/fcitx-utils/key.cpp:174
+msgctxt "Key name"
+msgid "Messenger"
+msgstr "메신저"
+
+#: src/lib/fcitx-utils/key.cpp:193
+msgctxt "Key name"
+msgid "Microphone Mute"
+msgstr "마이크 끄기"
+
+#: src/lib/fcitx-utils/key.cpp:105
+msgctxt "Key name"
+msgid "Monitor Brightness Down"
+msgstr "모니터 밝기 줄이기"
+
+#: src/lib/fcitx-utils/key.cpp:103
+msgctxt "Key name"
+msgid "Monitor Brightness Up"
+msgstr "모니터 밝기 낮추기"
+
+#: src/lib/fcitx-utils/key.cpp:210
+msgctxt "Key name"
+msgid "Muhenkan"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:226
+msgctxt "Key name"
+msgid "Multiple Candidate"
+msgstr "다중 후보"
+
+#: src/lib/fcitx-utils/key.cpp:178
+msgctxt "Key name"
+msgid "Music"
+msgstr "음악"
+
+#: src/lib/fcitx-utils/key.cpp:148
+msgctxt "Key name"
+msgid "My Sites"
+msgstr "내 사이트"
+
+#: src/lib/fcitx-utils/key.cpp:198
+msgctxt "Key name"
+msgid "New"
+msgstr "새로 만들기"
+
+#: src/lib/fcitx-utils/key.cpp:149
+msgctxt "Key name"
+msgid "News"
+msgstr "뉴스"
+
+#: src/im/keyboard/keyboard.h:58
+msgid "Next Candidate"
+msgstr "다음 후보"
+
+#: src/modules/clipboard/clipboard.cpp:296
 msgid "No clipboard history."
 msgstr "클립보드 기록이 없습니다."
 
@@ -201,23 +877,221 @@ msgstr "없음"
 msgid "Not available"
 msgstr "사용할 수 없음"
 
+#: src/modules/notifications/notifications.conf.in:3
+msgid "Notification"
+msgstr "알림"
+
+#: src/lib/fcitx-utils/key.cpp:64
+msgctxt "Key name"
+msgid "NumLock"
+msgstr "NumLock"
+
+#: src/lib/fcitx-utils/key.cpp:199
+msgctxt "Key name"
+msgid "Open"
+msgstr "열기"
+
+#: src/lib/fcitx-utils/key.cpp:85
+msgctxt "Key name"
+msgid "Open URL"
+msgstr "URL 열기"
+
+#: src/lib/fcitx-utils/key.cpp:151
+msgctxt "Key name"
+msgid "Option"
+msgstr "선택사항"
+
+#: src/im/keyboard/keyboard.h:47
+msgid "Page size"
+msgstr "페이지 크기"
+
+#: src/lib/fcitx-utils/key.cpp:152
+msgctxt "Key name"
+msgid "Paste"
+msgstr "붙이기"
+
+#: src/lib/fcitx-utils/key.cpp:54
+msgctxt "Key name"
+msgid "Pause"
+msgstr "중지"
+
+#: src/lib/fcitx-utils/key.cpp:62
+msgctxt "Key name"
+msgid "PgDown"
+msgstr "페이지다운"
+
+#: src/lib/fcitx-utils/key.cpp:61
+msgctxt "Key name"
+msgid "PgUp"
+msgstr "페이지업"
+
+#: src/lib/fcitx-utils/key.cpp:153
+msgctxt "Key name"
+msgid "Phone"
+msgstr "전화"
+
+#: src/lib/fcitx-utils/key.cpp:177
+msgctxt "Key name"
+msgid "Pictures"
+msgstr "사진"
+
+#: src/lib/fcitx-utils/key.cpp:191
+msgctxt "Key name"
+msgid "Power Down"
+msgstr "전원 끄기"
+
+#: src/lib/fcitx-utils/key.cpp:110
+msgctxt "Key name"
+msgid "Power Off"
+msgstr "전원 끄기"
+
 #: src/modules/spell/spell.h:34
 msgid "Presage"
 msgstr "Presage"
+
+#: src/im/keyboard/keyboard.h:52
+msgid "Prev Candidate"
+msgstr "이전 후보"
+
+#: src/lib/fcitx-utils/key.cpp:227
+msgctxt "Key name"
+msgid "Previous Candidate"
+msgstr "이전 후보"
+
+#: src/lib/fcitx-utils/key.cpp:203
+msgctxt "Key name"
+msgid "Print Screen"
+msgstr "화면 출력"
 
 #: src/modules/quickphrase/quickphrase.conf.in:3
 msgid "Quick Phrase"
 msgstr "상용구"
 
-#: src/modules/quickphrase/quickphrase.cpp:283
+#: src/modules/quickphrase/quickphrase.cpp:285
 msgid "Quick Phrase: "
 msgstr "상용구:"
 
+#: src/lib/fcitx-utils/key.cpp:194
+msgctxt "Key name"
+msgid "Red"
+msgstr "빨강"
+
+#: src/lib/fcitx-utils/key.cpp:202
+msgctxt "Key name"
+msgid "Redo"
+msgstr "재실행"
+
+#: src/lib/fcitx-utils/key.cpp:71
+msgctxt "Key name"
+msgid "Refresh"
+msgstr "새로 고침"
+
+#: src/lib/fcitx-utils/key.cpp:155
+msgctxt "Key name"
+msgid "Reload"
+msgstr "다시 로드<br><br>"
+
+#: src/lib/fcitx-utils/key.cpp:154
+msgctxt "Key name"
+msgid "Reply"
+msgstr "답장"
+
+#: src/ui/classic/xcbtraywindow.cpp:54
 #: src/modules/notificationitem/dbusmenu.cpp:287
 msgid "Restart"
 msgstr "재시작"
 
-#: src/lib/fcitx/globalconfig.cpp:78
+#: src/lib/fcitx-utils/key.cpp:53
+msgctxt "Key name"
+msgid "Return"
+msgstr "반환"
+
+#: src/lib/fcitx-utils/key.cpp:59
+msgctxt "Key name"
+msgid "Right"
+msgstr "오른쪽"
+
+#: src/lib/fcitx-utils/key.cpp:43
+msgctxt "Key name"
+msgid "Right Alt"
+msgstr "오른쪽 Alt"
+
+#: src/lib/fcitx-utils/key.cpp:47
+msgctxt "Key name"
+msgid "Right Control"
+msgstr "오른쪽 Control"
+
+#: src/lib/fcitx-utils/key.cpp:45
+msgctxt "Key name"
+msgid "Right Shift"
+msgstr "오른쪽 시프트"
+
+#: src/lib/fcitx-utils/key.cpp:49
+msgctxt "Key name"
+msgid "Right Super"
+msgstr "오른쪽 윈도우키"
+
+#: src/lib/fcitx-utils/key.cpp:212
+msgctxt "Key name"
+msgid "Romaji"
+msgstr "로마자"
+
+#: src/lib/fcitx-utils/key.cpp:156
+msgctxt "Key name"
+msgid "Rotate Windows"
+msgstr "윈도우 회전"
+
+#: src/lib/fcitx-utils/key.cpp:158
+msgctxt "Key name"
+msgid "Rotation KB"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:157
+msgctxt "Key name"
+msgid "Rotation PB"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:159
+msgctxt "Key name"
+msgid "Save"
+msgstr "저장"
+
+#: src/lib/fcitx-utils/key.cpp:113
+msgctxt "Key name"
+msgid "Screensaver"
+msgstr "화면 보호기"
+
+#: src/lib/fcitx-utils/key.cpp:65
+msgctxt "Key name"
+msgid "ScrollLock"
+msgstr "스크롤 락"
+
+#: src/lib/fcitx-utils/key.cpp:83
+msgctxt "Key name"
+msgid "Search"
+msgstr "검색"
+
+#: src/lib/fcitx-utils/key.cpp:208
+msgctxt "Key name"
+msgid "Select"
+msgstr "선택"
+
+#: src/lib/fcitx-utils/key.cpp:160
+msgctxt "Key name"
+msgid "Send"
+msgstr "보내기"
+
+#: src/lib/fcitx-utils/key.cpp:434
+msgctxt "Key name"
+msgid "Shift"
+msgstr "Shift"
+
+#: src/lib/fcitx-utils/key.cpp:117
+msgctxt "Key name"
+msgid "Shop"
+msgstr "숍"
+
+#: src/lib/fcitx/globalconfig.cpp:107
 msgid "Show Input Method Information when switch input method"
 msgstr "입력기 변경 시 입력기 정보 보이기"
 
@@ -225,29 +1099,165 @@ msgstr "입력기 변경 시 입력기 정보 보이기"
 msgid "Simple UI for testing"
 msgstr "테스트를 위한 단순 UI"
 
+#: src/lib/fcitx-utils/key.cpp:115
+msgctxt "Key name"
+msgid "Sleep"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:50
+msgctxt "Key name"
+msgid "Space"
+msgstr "공백"
+
 #: src/modules/spell/spell.conf.in:3
 msgid "Spell"
 msgstr "철자"
 
-#: src/im/keyboard/keyboard.cpp:304
+#: src/im/keyboard/keyboard.cpp:353
 msgid "Spell hint"
 msgstr "철자 힌트"
 
-#: src/im/keyboard/keyboard.cpp:306
+#: src/im/keyboard/keyboard.cpp:355
 msgid "Spell hint is disabled."
 msgstr "철자 힌트 비활성화됨."
 
-#: src/im/keyboard/keyboard.cpp:305
+#: src/im/keyboard/keyboard.cpp:354
 msgid "Spell hint is enabled."
 msgstr "철자 힌트 활성화됨."
+
+#: src/lib/fcitx-utils/key.cpp:161
+msgctxt "Key name"
+msgid "Spellchecker"
+msgstr "철자 검사"
+
+#: src/lib/fcitx-utils/key.cpp:162
+msgctxt "Key name"
+msgid "Split Screen"
+msgstr "화면 나누기"
+
+#: src/lib/fcitx-utils/key.cpp:138
+msgctxt "Key name"
+msgid "Spreadsheet"
+msgstr "스프레드시트"
+
+#: src/lib/fcitx-utils/key.cpp:84
+msgctxt "Key name"
+msgid "Standby"
+msgstr "대기"
+
+#: data/fcitx5.desktop.in.in:5
+msgid "Start Input Method"
+msgstr "입력기 시작"
+
+#: src/modules/notificationitem/notificationitem.conf.in:3
+msgid "Status Notifier"
+msgstr "상태 표시기"
+
+#: src/lib/fcitx-utils/key.cpp:70
+msgctxt "Key name"
+msgid "Stop"
+msgstr "중지"
+
+#: src/lib/fcitx-utils/key.cpp:185
+msgctxt "Key name"
+msgid "Subtitle"
+msgstr "부제"
 
 #: src/im/keyboard/keyboard.h:43 src/modules/quickphrase/quickphrase.h:39
 msgid "Super"
 msgstr "Super"
 
+#: src/lib/fcitx-utils/key.cpp:435
+msgctxt "Key name"
+msgid "Super"
+msgstr "Super"
+
+#: src/lib/fcitx-utils/key.cpp:163
+msgctxt "Key name"
+msgid "Support"
+msgstr "지원"
+
+#: src/lib/fcitx-utils/key.cpp:192
+msgctxt "Key name"
+msgid "Suspend"
+msgstr "중단"
+
+#: src/lib/fcitx-utils/key.cpp:207
+msgctxt "Key name"
+msgid "System Request"
+msgstr "시스템 요청"
+
+#: src/lib/fcitx-utils/key.cpp:51
+msgctxt "Key name"
+msgid "Tab"
+msgstr "탭"
+
+#: src/lib/fcitx-utils/key.cpp:164
+msgctxt "Key name"
+msgid "Task Panel"
+msgstr "작업 패널"
+
+#: src/lib/fcitx-utils/key.cpp:165
+msgctxt "Key name"
+msgid "Terminal"
+msgstr "터미널"
+
+#: src/ui/classic/classicui.h:67
+msgid "Theme"
+msgstr "테마"
+
+#: src/lib/fcitx-utils/key.cpp:187
+msgctxt "Key name"
+msgid "Time"
+msgstr "시간"
+
+#: src/lib/fcitx-utils/key.cpp:166
+msgctxt "Key name"
+msgid "Tools"
+msgstr "도구"
+
+#: src/lib/fcitx-utils/key.cpp:190
+msgctxt "Key name"
+msgid "Top Menu"
+msgstr "최상위 메뉴"
+
+#: src/lib/fcitx-utils/key.cpp:243
+msgctxt "Key name"
+msgid "Touchpad Off"
+msgstr "터치패드 끄기"
+
+#: src/lib/fcitx-utils/key.cpp:242
+msgctxt "Key name"
+msgid "Touchpad On"
+msgstr "터치패드 켜기"
+
+#: src/lib/fcitx-utils/key.cpp:241
+msgctxt "Key name"
+msgid "Touchpad Toggle"
+msgstr "터치패드 전환"
+
+#: src/lib/fcitx-utils/key.cpp:219
+msgctxt "Key name"
+msgid "Touroku"
+msgstr ""
+
+#: src/lib/fcitx-utils/key.cpp:167
+msgctxt "Key name"
+msgid "Travel"
+msgstr "여행"
+
 #: src/lib/fcitx/globalconfig.cpp:34
 msgid "Trigger Input Method"
 msgstr "입력기 전환"
+
+#: src/im/keyboard/keyboard.h:66
+msgid "Trigger hint mode"
+msgstr "힌트 방식 전환"
+
+#: src/lib/fcitx-utils/key.cpp:201
+msgctxt "Key name"
+msgid "Undo"
+msgstr "되돌리기"
 
 #: src/modules/unicode/unicode.conf.in:3
 msgid "Unicode"
@@ -257,6 +1267,54 @@ msgstr "유니코드"
 msgid "Unicode: "
 msgstr "유니코드:"
 
+#: src/lib/fcitx-utils/key.cpp:58
+msgctxt "Key name"
+msgid "Up"
+msgstr "위쪽"
+
+#: src/ui/classic/classicui.h:62
+msgid "Use Per Screen DPI"
+msgstr "화면 해상도 사용하기"
+
+#: src/ui/classic/classicui.h:61
+msgid "Vertical Candidate List"
+msgstr "세로 단어 후보 목록"
+
+#: src/lib/fcitx-utils/key.cpp:168
+msgctxt "Key name"
+msgid "Video"
+msgstr "동영상"
+
+#: src/lib/fcitx-utils/key.cpp:189
+msgctxt "Key name"
+msgid "View"
+msgstr "보기"
+
+#: src/lib/fcitx-utils/key.cpp:72
+msgctxt "Key name"
+msgid "Volume Down"
+msgstr "음량 낮추기"
+
+#: src/lib/fcitx-utils/key.cpp:73
+msgctxt "Key name"
+msgid "Volume Mute"
+msgstr "소리 끄기"
+
+#: src/lib/fcitx-utils/key.cpp:74
+msgctxt "Key name"
+msgid "Volume Up"
+msgstr "음량 높이기"
+
+#: src/lib/fcitx-utils/key.cpp:114
+msgctxt "Key name"
+msgid "WWW"
+msgstr "WWW"
+
+#: src/lib/fcitx-utils/key.cpp:111
+msgctxt "Key name"
+msgid "Wake Up"
+msgstr "깨우기"
+
 #: src/modules/wayland/wayland.conf.in:3
 msgid "Wayland"
 msgstr "Wayland"
@@ -264,6 +1322,21 @@ msgstr "Wayland"
 #: src/frontend/waylandim/waylandim.conf.in:3
 msgid "Wayland Input method frontend"
 msgstr "Wayland 입력기 전처리기"
+
+#: src/lib/fcitx-utils/key.cpp:175
+msgctxt "Key name"
+msgid "WebCam"
+msgstr "웹캠"
+
+#: src/lib/fcitx-utils/key.cpp:181
+msgctxt "Key name"
+msgid "Wireless"
+msgstr "무선"
+
+#: src/lib/fcitx-utils/key.cpp:169
+msgctxt "Key name"
+msgid "Word Processor"
+msgstr "워드프로세서"
 
 #: src/frontend/xim/xim.conf.in:3
 msgid "X Input Method Frontend"
@@ -273,18 +1346,69 @@ msgstr "X 입력기 전처리기"
 msgid "XCB"
 msgstr "XCB"
 
-#: src/modules/notificationitem/notificationitem.conf.in:3
-msgid "notificationitem"
-msgstr "notificationitem"
+#: src/lib/fcitx-utils/key.cpp:170
+msgctxt "Key name"
+msgid "XFer"
+msgstr "XFer"
 
-#: src/modules/notifications/notifications.conf.in:3
-msgid "notifications"
-msgstr "notifications"
+#: src/lib/fcitx-utils/key.cpp:196
+msgctxt "Key name"
+msgid "Yellow"
+msgstr "노랑"
 
-#: src/lib/fcitx/instance.cpp:1494
+#: data/fcitx5-configtool.sh:140
+msgid ""
+"You're currently running Fcitx with GUI, but fcitx-configtool couldn't be "
+"found, the package name is usually fcitx-config-gtk, fcitx-config-gtk3 or "
+"fcitx-configtool. Now it will open config file with default text editor."
+msgstr ""
+"당신은 GUI 환경에서 Fcitx을 실행하고 있지만,  fcitx-configtool을 찾을 수 없습"
+"니다.  패키지 이름은 일반적으로 fcitx-config-gtk, fcitx-config-gtk3 또는 "
+"fcitx-configtool입니다.  지금은 기본 텍스트 편집기로 설정 파일을 엽니다."
+
+#: data/fcitx5-configtool.sh:137
+msgid ""
+"You're currently running KDE, but KCModule for fcitx couldn't be found, the "
+"package name of this KCModule is usually kcm-fcitx or kde-config-fcitx. Now "
+"it will open config file with default text editor."
+msgstr ""
+"당신은 KDE에서 실행 중이지만, fcitx 실행에 필요한 KCModule을 찾을 수 없습니"
+"다.  이 KCModule의 패키지 이름은 일반적으로 kcm-fcitx 또는 kde-config-fcitx입"
+"니다.  지금은 기본 텍스트 편집기로 설정 파일을 엽니다."
+
+#: src/lib/fcitx-utils/key.cpp:216
+msgctxt "Key name"
+msgid "Zenkaku"
+msgstr "전각"
+
+#: src/lib/fcitx-utils/key.cpp:218
+msgctxt "Key name"
+msgid "Zenkaku Hankaku"
+msgstr "전각 반각"
+
+#: src/lib/fcitx-utils/key.cpp:171
+msgctxt "Key name"
+msgid "Zoom In"
+msgstr "크게 보기"
+
+#: src/lib/fcitx-utils/key.cpp:172
+msgctxt "Key name"
+msgid "Zoom Out"
+msgstr "작게 보기"
+
+#: src/lib/fcitx-utils/key.cpp:142
+msgctxt "Key name"
+msgid "iTouch"
+msgstr "iTouch"
+
+#: src/im/keyboard/keyboard.cpp:246
+msgid "{0} (Not Available)"
+msgstr "{0} (사용할 수 없음)"
+
+#: src/lib/fcitx/instance.cpp:1546
 msgid "{0} (Not available)"
 msgstr "{0} (사용할 수 없음)"
 
-#: src/lib/fcitx/instance.cpp:1491
+#: src/lib/fcitx/instance.cpp:1543
 msgid "{0} ({1})"
 msgstr "{0} ({1})"

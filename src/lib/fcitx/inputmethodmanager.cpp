@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "inputmethodmanager.h"
 #include "addonmanager.h"
@@ -114,8 +114,8 @@ void InputMethodManager::load() {
             continue;
         }
         auto newEntries = engine->listInputMethods();
-        FCITX_LOG(Info) << "Found " << newEntries.size() << " input method(s) "
-                        << "in addon " << addonName;
+        FCITX_INFO() << "Found " << newEntries.size() << " input method(s) "
+                     << "in addon " << addonName;
         for (auto &newEntry : newEntries) {
             // ok we can't let you register something werid.
             if (checkEntry(newEntry, inputMethods) &&
@@ -183,8 +183,8 @@ void InputMethodManager::loadConfig() {
     }
 
     if (d->groups_.size() == 0) {
-        FCITX_LOG(Info) << "No valid input method group in configuration. "
-                        << "Building a default one";
+        FCITX_INFO() << "No valid input method group in configuration. "
+                     << "Building a default one";
         buildDefaultGroup();
     } else {
         if (imConfig.groupOrder.value().size()) {
@@ -371,4 +371,4 @@ bool InputMethodManager::foreachEntries(
     }
     return true;
 }
-}
+} // namespace fcitx

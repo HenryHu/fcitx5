@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "ibusfrontend.h"
 #include "dbus_public.h"
@@ -152,7 +152,7 @@ std::pair<std::string, pid_t> getAddress(const std::string &socketPath) {
     return {};
 }
 
-pid_t startProcess() {
+pid_t runIBusExit() {
     pid_t child_pid;
     if ((child_pid = fork()) == -1) {
         perror("fork");
@@ -174,7 +174,7 @@ pid_t startProcess() {
 
     return child_pid;
 }
-}
+} // namespace
 
 using AttachmentsType = FCITX_STRING_TO_DBUS_TYPE("a{sv}");
 using IBusText = FCITX_STRING_TO_DBUS_TYPE("(sa{sv}sv)");
@@ -271,6 +271,8 @@ public:
     }
 
     ~IBusInputContext() { InputContext::destroy(); }
+
+    const char *frontend() const override { return "ibus"; }
 
     const std::string &name() const { return name_; }
 
@@ -399,8 +401,9 @@ public:
 
     bool processKeyEvent(uint32_t keyval, uint32_t keycode, uint32_t state) {
         CHECK_SENDER_OR_RETURN false;
-        KeyEvent event(this, Key(static_cast<KeySym>(keyval),
-                                 KeyStates(state & (~releaseMask)), keycode),
+        KeyEvent event(this,
+                       Key(static_cast<KeySym>(keyval),
+                           KeyStates(state & (~releaseMask)), keycode),
                        state & releaseMask, 0);
         // Force focus if there's keyevent.
         if (!hasFocus()) {
@@ -635,7 +638,7 @@ void IBusFrontendModule::replaceIBus() {
     auto address = getAddress(socketPath_);
     oldAddress_ = address.first;
     if (!address.first.empty()) {
-        auto pid = startProcess();
+        auto pid = runIBusExit();
         if (pid > 0) {
             FCITX_DEBUG() << "Running ibus exit.";
             timeEvent_ = instance()->eventLoop().addTimeEvent(
@@ -739,6 +742,6 @@ public:
         return new IBusFrontendModule(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::IBusFrontendModuleFactory);

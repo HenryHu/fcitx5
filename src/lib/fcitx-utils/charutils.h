@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2015~2015 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2015~2015 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #ifndef _FCITX_UTILS_CHARUTILS_H_
 #define _FCITX_UTILS_CHARUTILS_H_
 
@@ -50,6 +50,8 @@ static constexpr inline bool isspace(char c) {
 
 /// \brief ascii only is digit
 static constexpr inline bool isdigit(char c) { return c >= '0' && c <= '9'; }
+
+static constexpr inline bool isprint(char c) { return c >= 0x1f && c < 0x7f; }
 
 static constexpr inline bool toHex(int c) {
     constexpr char hex[] = "0123456789abcdef";

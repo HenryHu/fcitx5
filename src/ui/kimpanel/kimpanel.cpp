@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "kimpanel.h"
 #include "dbus_public.h"
@@ -97,7 +97,7 @@ Kimpanel::Kimpanel(Instance *instance)
     entry_ = watcher_.watchService(
         "org.kde.impanel", [this](const std::string &, const std::string &,
                                   const std::string &newOwner) {
-            FCITX_LOG(Info) << "Kimpanel new owner" << newOwner;
+            FCITX_INFO() << "Kimpanel new owner" << newOwner;
             setAvailable(!newOwner.empty());
         });
 }
@@ -373,7 +373,6 @@ void Kimpanel::msgV1Handler(dbus::Message &msg) {
             if (!ic) {
                 return;
             }
-            auto icRef = ic->watch();
             if (auto menu = action->menu()) {
                 std::vector<std::string> menuitems;
                 for (auto menuAction : menu->actions()) {
@@ -385,11 +384,11 @@ void Kimpanel::msgV1Handler(dbus::Message &msg) {
                 // make ic has focus.
                 timeEvent_ = instance_->eventLoop().addTimeEvent(
                     CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 30000, 0,
-                    [this, actionName, icRef](EventSourceTime *, uint64_t) {
+                    [this, actionName](EventSourceTime *, uint64_t) {
                         if (auto action =
                                 instance_->userInterfaceManager().lookupAction(
                                     actionName)) {
-                            if (auto ic = icRef.get()) {
+                            if (auto ic = instance_->mostRecentInputContext()) {
                                 action->activate(ic);
                             }
                         }
@@ -465,6 +464,6 @@ public:
         return new Kimpanel(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::KimpanelFactory);

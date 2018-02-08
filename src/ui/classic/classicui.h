@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #ifndef _FCITX_UI_CLASSIC_CLASSICUI_H_
 #define _FCITX_UI_CLASSIC_CLASSICUI_H_
 
@@ -24,6 +24,7 @@
 #include "fcitx-config/configuration.h"
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/event.h"
+#include "fcitx-utils/i18n.h"
 #include "fcitx/addonfactory.h"
 #include "fcitx/addoninstance.h"
 #include "fcitx/addonmanager.h"
@@ -54,12 +55,16 @@ struct NotEmpty {
     void dumpDescription(RawConfig &) const {}
 };
 
-FCITX_CONFIGURATION(ClassicUIConfig,
-                    fcitx::Option<bool> verticalCandidateList{
-                        this, "Vertical Candidate List",
-                        "Vertical Candidate List", false};
-                    fcitx::Option<std::string, NotEmpty> theme{
-                        this, "Theme", "Theme", "default"};);
+FCITX_CONFIGURATION(
+    ClassicUIConfig,
+    Option<bool> verticalCandidateList{this, "Vertical Candidate List",
+                                       _("Vertical Candidate List"), false};
+    Option<bool> perScreenDPI{this, "PerScreenDPI", _("Use Per Screen DPI"),
+                              true};
+
+    OptionWithAnnotation<std::string, FontAnnotation> font{this, "Font", "Font",
+                                                           "Sans 9"};
+    Option<std::string, NotEmpty> theme{this, "Theme", _("Theme"), "default"};);
 
 class ClassicUI : public UserInterface {
 public:
@@ -110,7 +115,7 @@ private:
     Theme theme_;
     bool suspended_ = true;
 };
-}
-}
+} // namespace classicui
+} // namespace fcitx
 
 #endif // _FCITX_UI_CLASSIC_CLASSICUI_H_

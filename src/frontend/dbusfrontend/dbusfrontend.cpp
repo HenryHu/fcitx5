@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "dbusfrontend.h"
 #include "dbus_public.h"
@@ -25,6 +25,8 @@
 #include "fcitx-utils/log.h"
 #include "fcitx-utils/metastring.h"
 #include "fcitx/inputcontext.h"
+#include "fcitx/inputmethodentry.h"
+#include "fcitx/inputmethodmanager.h"
 #include "fcitx/instance.h"
 #include "fcitx/misc_p.h"
 
@@ -81,7 +83,14 @@ public:
 
     ~DBusInputContext1() { InputContext::destroy(); }
 
+    const char *frontend() const override { return "dbus"; }
+
     const dbus::ObjectPath path() const { return path_; }
+
+    void updateIM(const InputMethodEntry *entry) {
+        currentIMTo(name_, entry->name(), entry->uniqueName(),
+                    entry->languageCode());
+    }
 
     void commitStringImpl(const std::string &text) override {
         commitStringDBusTo(name_, text);
@@ -240,6 +249,19 @@ DBusFrontendModule::DBusFrontendModule(Instance *instance)
                                          dbus::RequestNameFlag::Queue})) {
         FCITX_LOG(Warn) << "Can not get portal dbus name right now.";
     }
+
+    event_ = instance_->watchEvent(
+        EventType::InputContextInputMethodActivated, EventWatcherPhase::Default,
+        [this](Event &event) {
+            auto &activated = static_cast<InputMethodActivatedEvent &>(event);
+            auto ic = activated.inputContext();
+            if (strcmp(ic->frontend(), "dbus") == 0) {
+                if (auto entry = instance_->inputMethodManager().entry(
+                        activated.name())) {
+                    static_cast<DBusInputContext1 *>(ic)->updateIM(entry);
+                }
+            }
+        });
 }
 
 DBusFrontendModule::~DBusFrontendModule() {
@@ -256,6 +278,6 @@ public:
         return new DBusFrontendModule(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::DBusFrontendModuleFactory);

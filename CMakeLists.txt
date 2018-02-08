@@ -25,8 +25,7 @@ set(DEFAULT_XKB_RULES "evdev" CACHE STRING "Xkb rules name")
 option(ENABLE_ENCHANT "Enable enchant for word predication" On)
 option(ENABLE_PRESAGE "Enable presage for word predication" Off)
 option(ENABLE_DOC "Build doxygen" Off)
-option(USE_LIBDBUS "Use libdbus as dbus implementation." Off)
-option(USE_LIBEVENT "Use libevent for event loop." Off)
+option(USE_SYSTEMD "Use systemd for event loop and dbus, will fallback to libevent/libdbus if not found." On)
 
 #######################################################################
 # Find packages
@@ -38,17 +37,14 @@ set(USE_LIBDBUS 1)
 set(USE_LIBEVENT 1)
 endif()
 
-if (USE_LIBDBUS)
-pkg_check_modules(DBus REQUIRED IMPORTED_TARGET "dbus-1")
-pkg_get_variable(DBUS_SYSTEM_BUS_DEFAULT_ADDRESS "dbus-1" "system_bus_default_address")
+if (USE_SYSTEMD)
+find_package(Systemd)
 endif ()
 
-if (USE_LIBEVENT)
+if (NOT TARGET Systemd::Systemd)
+pkg_check_modules(DBus REQUIRED IMPORTED_TARGET "dbus-1")
+pkg_get_variable(DBUS_SYSTEM_BUS_DEFAULT_ADDRESS "dbus-1" "system_bus_default_address")
 pkg_check_modules(LibEvent REQUIRED IMPORTED_TARGET "libevent")
-endif()
-
-if (NOT USE_LIBDBUS OR NOT USE_LIBEVENT)
-find_package(Systemd REQUIRED)
 endif()
 
 find_package(DL REQUIRED)
@@ -84,7 +80,10 @@ find_package(WaylandProtocols)
 find_package(EGL)
 
 if(ENABLE_ENCHANT)
-  find_package(Enchant REQUIRED)
+  pkg_check_modules(Enchant IMPORTED_TARGET "enchant-2")
+  if(NOT TARGET PkgConfig::Enchant)
+    pkg_check_modules(Enchant IMPORTED_TARGET "enchant" REQUIRED)
+  endif()
 endif()
 
 if(ENABLE_PRESAGE)

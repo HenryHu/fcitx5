@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "addonmanager.h"
 #include "addonloader.h"
@@ -174,7 +174,7 @@ public:
         if (!addon.instance_) {
             addon.setFailed(true);
         } else {
-            FCITX_LOG(Info) << "Loaded addon " << addon.info().uniqueName();
+            FCITX_INFO() << "Loaded addon " << addon.info().uniqueName();
         }
     }
 
@@ -262,7 +262,7 @@ void AddonManager::unload() {
     // reverse the unload order
     for (auto iter = d->loadOrder_.rbegin(), end = d->loadOrder_.rend();
          iter != end; iter++) {
-        FCITX_LOG(Info) << "Unloading addon " << *iter;
+        FCITX_INFO() << "Unloading addon " << *iter;
         d->addons_.erase(*iter);
     }
     d->loadOrder_.clear();
@@ -340,4 +340,4 @@ EventLoop *AddonManager::eventLoop() {
     FCITX_D();
     return d->eventLoop_;
 }
-}
+} // namespace fcitx

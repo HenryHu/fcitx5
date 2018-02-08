@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "instance.h"
 #include "addonmanager.h"
@@ -44,6 +44,10 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-compose.h>
 #include <xkbcommon/xkbcommon.h>
+
+FCITX_DEFINE_LOG_CATEGORY(keyTrace, "keyTrace");
+
+#define FCITX_KEYTRACE() FCITX_LOGC(keyTrace, Debug)
 
 namespace {
 
@@ -74,7 +78,7 @@ void initAsDaemon() {
     signal(SIGTTIN, oldttin);
     signal(SIGCHLD, oldchld);
 }
-}
+} // namespace
 
 namespace fcitx {
 
@@ -142,6 +146,8 @@ struct InputState : public InputContextProperty {
     std::unique_ptr<EventSourceTime> imInfoTimer_;
     std::string lastInfo_;
     std::string lastIM_;
+
+    bool lastIMChangeIsAltTrigger_ = false;
 };
 
 class CheckInputMethodChanged {
@@ -321,6 +327,8 @@ public:
     std::unordered_map<std::string,
                        std::tuple<std::string, std::string, std::string>>
         xkbParams_;
+
+    bool restart_ = false;
 };
 
 InputState::InputState(InstancePrivate *d, InputContext *ic)
@@ -440,6 +448,9 @@ Instance::Instance(int argc, char **argv) {
                  [this, ic](bool totallyReleased) {
                      return trigger(ic, totallyReleased);
                  }},
+                {d->globalConfig_.altTriggerKeys(),
+                 [this, ic]() { return canAltTrigger(ic); },
+                 [this, ic](bool) { return altTrigger(ic); }},
                 {d->globalConfig_.activateKeys(),
                  [this]() { return canTrigger(); },
                  [this, ic](bool) { return activate(ic); }},
@@ -473,6 +484,11 @@ Instance::Instance(int argc, char **argv) {
             };
 
             auto inputState = ic->propertyFor(&d->inputStateFactory);
+            int keyReleased = inputState->keyReleased_;
+            int keyReleasedIndex = inputState->keyReleasedIndex_;
+            // Keep these two values, and reset them in the state
+            inputState->keyReleased_ = -1;
+            inputState->keyReleasedIndex_ = -2;
             const bool isModifier = keyEvent.origKey().isModifier();
             if (keyEvent.isRelease()) {
                 int idx = 0;
@@ -482,8 +498,8 @@ Instance::Instance(int argc, char **argv) {
                     inputState->totallyReleased_ = true;
                 }
                 for (auto &keyHandler : keyHandlers) {
-                    if (inputState->keyReleased_ == idx &&
-                        inputState->keyReleasedIndex_ ==
+                    if (keyReleased == idx &&
+                        keyReleasedIndex ==
                             keyEvent.origKey().keyListIndex(keyHandler.list) &&
                         keyHandler.check()) {
                         if (isModifier) {
@@ -502,8 +518,6 @@ Instance::Instance(int argc, char **argv) {
 
             if (!keyEvent.filtered() && !keyEvent.isRelease()) {
                 int idx = 0;
-                inputState->keyReleased_ = -1;
-                inputState->keyReleasedIndex_ = -2;
                 for (auto &keyHandler : keyHandlers) {
                     auto keyIdx =
                         keyEvent.origKey().keyListIndex(keyHandler.list);
@@ -533,6 +547,8 @@ Instance::Instance(int argc, char **argv) {
             auto ic = keyEvent.inputContext();
             auto inputState = ic->propertyFor(&d->inputStateFactory);
             auto xkbState = inputState->customXkbState();
+            FCITX_KEYTRACE() << "KeyEvent: " << keyEvent.key()
+                             << " Release:" << keyEvent.isRelease();
             if (xkbState) {
                 if (auto mods = findValue(d->stateMask_, ic->display())) {
                     FCITX_LOG(Debug) << "Update mask to customXkbState";
@@ -706,11 +722,20 @@ Instance::Instance(int argc, char **argv) {
             auto &icEvent =
                 static_cast<InputContextSwitchInputMethodEvent &>(event);
             auto ic = icEvent.inputContext();
-            if (!ic->hasFocus() ||
-                (icEvent.reason() != InputMethodSwitchedReason::Trigger &&
+            if (!ic->hasFocus()) {
+                return;
+            }
+
+            auto inputState = ic->propertyFor(&d->inputStateFactory);
+            inputState->lastIMChangeIsAltTrigger_ =
+                icEvent.reason() == InputMethodSwitchedReason::AltTrigger;
+
+            if ((icEvent.reason() != InputMethodSwitchedReason::Trigger &&
+                 icEvent.reason() != InputMethodSwitchedReason::AltTrigger &&
                  icEvent.reason() != InputMethodSwitchedReason::Enumerate &&
                  icEvent.reason() != InputMethodSwitchedReason::Activate &&
                  icEvent.reason() != InputMethodSwitchedReason::Other &&
+                 icEvent.reason() != InputMethodSwitchedReason::GroupChange &&
                  icEvent.reason() != InputMethodSwitchedReason::Deactivate)) {
                 return;
             }
@@ -718,7 +743,7 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(
         d->watchEvent(EventType::InputMethodGroupChanged,
-                      EventWatcherPhase::ReservedFirst, [this, d](Event &) {
+                      EventWatcherPhase::ReservedLast, [this, d](Event &) {
                           // Use a timer here. so we can get focus back to real
                           // window.
                           d->imGroupInfoTimer_ = d->eventLoop_.addTimeEvent(
@@ -856,7 +881,7 @@ bool Instance::quitWhenMainDisplayDisconnected() const {
 void Instance::handleSignal() {
     FCITX_D();
     uint8_t signo = 0;
-    while (read(d->signalPipe_, &signo, sizeof(signo)) > 0) {
+    while (fs::safeRead(d->signalPipe_, &signo, sizeof(signo)) > 0) {
         if (signo == SIGINT || signo == SIGTERM || signo == SIGQUIT ||
             signo == SIGXCPU) {
             exit();
@@ -884,7 +909,17 @@ void Instance::initialize() {
     d->uiManager_.load(d->arg_.uiName);
     d->exitEvent_ = d->eventLoop_.addExitEvent([this](EventSource *) {
         FCITX_LOG(Debug) << "Running save...";
+        FCITX_D();
         save();
+        if (d->restart_) {
+            auto fcitxBinary = StandardPath::fcitxPath("bindir", "fcitx5");
+            std::vector<char> command{fcitxBinary.begin(), fcitxBinary.end()};
+            command.push_back('\0');
+            char *const argv[] = {command.data(), nullptr};
+            execv(argv[0], argv);
+            perror("Restart failed: execvp:");
+            _exit(1);
+        }
         return false;
     });
 }
@@ -1141,13 +1176,9 @@ void Instance::reloadConfig() {
 void Instance::resetInputMethodList() {}
 
 void Instance::restart() {
-    auto fcitxBinary = StandardPath::fcitxPath("bindir", "fcitx5");
-    std::vector<char> command{fcitxBinary.begin(), fcitxBinary.end()};
-    command.push_back('\0');
-    char *const argv[] = {command.data(), nullptr};
-    execv(argv[0], argv);
-    perror("Restart failed: execvp:");
-    _exit(1);
+    FCITX_D();
+    d->restart_ = true;
+    exit();
 }
 
 void Instance::setCurrentInputMethod(const std::string &name) {
@@ -1213,12 +1244,24 @@ bool Instance::canTrigger() const {
     return (imManager.currentGroup().inputMethodList().size() > 1);
 }
 
+bool Instance::canAltTrigger(InputContext *ic) const {
+    if (!canTrigger()) {
+        return false;
+    }
+    FCITX_D();
+    auto inputState = ic->propertyFor(&d->inputStateFactory);
+    if (inputState->active_) {
+        return true;
+    }
+    return inputState->lastIMChangeIsAltTrigger_;
+}
+
 bool Instance::canChangeGroup() const {
     auto &imManager = inputMethodManager();
     return (imManager.groupCount() > 1);
 }
 
-bool Instance::toggle(InputContext *ic) {
+bool Instance::toggle(InputContext *ic, InputMethodSwitchedReason reason) {
     FCITX_D();
     auto inputState = ic->propertyFor(&d->inputStateFactory);
     if (!canTrigger()) {
@@ -1226,7 +1269,7 @@ bool Instance::toggle(InputContext *ic) {
     }
     inputState->active_ = !inputState->active_;
     if (inputState->imChanged_) {
-        inputState->imChanged_->setReason(InputMethodSwitchedReason::Trigger);
+        inputState->imChanged_->setReason(reason);
     }
     return true;
 }
@@ -1250,6 +1293,15 @@ bool Instance::trigger(InputContext *ic, bool totallyReleased) {
         }
         inputState->firstTrigger_ = false;
     }
+    return true;
+}
+
+bool Instance::altTrigger(InputContext *ic) {
+    if (!canAltTrigger(ic)) {
+        return false;
+    }
+
+    toggle(ic, InputMethodSwitchedReason::AltTrigger);
     return true;
 }
 
@@ -1508,7 +1560,6 @@ void Instance::setXkbParameters(const std::string &display,
                                 const std::string &options) {
     FCITX_D();
     bool resetState = false;
-    ;
     if (auto param = findValue(d->xkbParams_, display)) {
         if (std::get<0>(*param) != rule || std::get<1>(*param) != model ||
             std::get<2>(*param) != options) {

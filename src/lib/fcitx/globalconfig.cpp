@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "globalconfig.h"
 #include "fcitx-config/configuration.h"
@@ -28,47 +28,76 @@ namespace impl {
 
 FCITX_CONFIGURATION(
     HotkeyConfig,
-    Option<KeyList> triggerKeys{
+    KeyListOption triggerKeys{
         this,
         "TriggerKeys",
         _("Trigger Input Method"),
-        {Key("Control+space"), Key("Zenkaku_Hankaku"), Key("Hangul")}};
-    Option<KeyList> altTriggerKeys{this,
-                                   "AltTriggerKeys",
-                                   _("Alternative Trigger Input Method"),
-                                   {Key("Shift_L")}};
-    Option<KeyList> enumerateForwardKeys{this,
-                                         "EnumerateForwardKeys",
-                                         _("Enumerate Input Method Forward"),
-                                         {Key("Control+Shift_R")}};
-    Option<KeyList> enumerateBackwardKeys{this,
-                                          "EnumerateBackwardKeys",
-                                          _("Enumerate Input Method Backward"),
-                                          {Key("Control+Shift_L")}};
-    Option<KeyList> enumerateGroupForwardKeys{
+        {Key("Control+space"), Key("Zenkaku_Hankaku"), Key("Hangul")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption altTriggerKeys{
+        this,
+        "AltTriggerKeys",
+        _("Alternative Trigger Input Method"),
+        {Key("Shift_L")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption enumerateForwardKeys{
+        this,
+        "EnumerateForwardKeys",
+        _("Enumerate Input Method Forward"),
+        {Key("Control+Shift_R")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption enumerateBackwardKeys{
+        this,
+        "EnumerateBackwardKeys",
+        _("Enumerate Input Method Backward"),
+        {Key("Control+Shift_L")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption enumerateGroupForwardKeys{
         this,
         "EnumerateGroupForwardKeys",
         _("Enumerate Input Method Group Forward"),
-        {Key("Super+space")}};
-    Option<KeyList> enumerateGroupBackwardKeys{
+        {Key("Super+space")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption enumerateGroupBackwardKeys{
         this,
         "EnumerateGroupBackwardKeys",
         _("Enumerate Input Method Group Backward"),
-        {Key("Super+Shift+space")}};
-    Option<KeyList> activateKeys{this,
-                                 "ActivateKeys",
-                                 _("Activate Input Method"),
-                                 {
-                                     Key("Hangul_Hanja"),
-                                 }};
-    Option<KeyList> deactivateKeys{this,
-                                   "DeactivateKeys",
-                                   _("Deactivate Input Method"),
-                                   {Key("Hangul_Romaja")}};
-    Option<KeyList> defaultPrevPage{
-        this, "PrevPage", _("Default Previous page"), {Key("Up")}};
-    Option<KeyList> defaultNextPage{
-        this, "NextPage", _("Default Next page"), {Key("Down")}};);
+        {Key("Super+Shift+space")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption activateKeys{
+        this,
+        "ActivateKeys",
+        _("Activate Input Method"),
+        {
+            Key("Hangul_Hanja"),
+        },
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption deactivateKeys{
+        this,
+        "DeactivateKeys",
+        _("Deactivate Input Method"),
+        {Key("Hangul_Romaja")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
+                          KeyConstrainFlag::AllowModifierOnly})};
+    KeyListOption defaultPrevPage{
+        this,
+        "PrevPage",
+        _("Default Previous page"),
+        {Key("Up")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess})};
+    KeyListOption defaultNextPage{
+        this,
+        "NextPage",
+        _("Default Next page"),
+        {Key("Down")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess})};);
 
 FCITX_CONFIGURATION(
     BehaviorConfig, Option<bool> activeByDefault{this, "ActiveByDefault",
@@ -88,7 +117,7 @@ FCITX_CONFIGURATION(GlobalConfig,
                     Option<HotkeyConfig> hotkey{this, "Hotkey", _("Hotkey")};
                     Option<BehaviorConfig> behavior{this, "Behavior",
                                                     _("Behavior")};);
-}
+} // namespace impl
 
 class GlobalConfigPrivate : public impl::GlobalConfig {};
 
@@ -114,6 +143,11 @@ bool GlobalConfig::safeSave(const std::string &path) const {
 const KeyList &GlobalConfig::triggerKeys() const {
     FCITX_D();
     return *d->hotkey->triggerKeys;
+}
+
+const KeyList &GlobalConfig::altTriggerKeys() const {
+    FCITX_D();
+    return *d->hotkey->altTriggerKeys;
 }
 
 const KeyList &GlobalConfig::activateKeys() const {
@@ -195,4 +229,4 @@ const Configuration &GlobalConfig::config() const {
     FCITX_D();
     return *d;
 }
-}
+} // namespace fcitx

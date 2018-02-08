@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2015~2015 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2015~2015 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "config.h"
 
@@ -228,25 +228,32 @@ bool writeAsIni(const RawConfig &root, FILE *fout) {
     return callback(root, "");
 }
 
-void readAsIni(Configuration &configuration, const std::string &path) {
+void readAsIni(RawConfig &rawConfig, const std::string &path) {
     auto &standardPath = StandardPath::global();
     auto file =
         standardPath.open(StandardPath::Type::PkgConfig, path, O_RDONLY);
+    readFromIni(rawConfig, file.fd());
+}
+
+void readAsIni(Configuration &configuration, const std::string &path) {
     RawConfig config;
-    readFromIni(config, file.fd());
+    readAsIni(config, path);
 
     configuration.load(config);
 }
 
+bool safeSaveAsIni(const RawConfig &config, const std::string &path) {
+    auto &standardPath = StandardPath::global();
+    return standardPath.safeSave(
+        StandardPath::Type::PkgConfig, path,
+        [&config](int fd) { return writeAsIni(config, fd); });
+}
+
 bool safeSaveAsIni(const Configuration &configuration,
                    const std::string &path) {
-    auto &standardPath = StandardPath::global();
-    return standardPath.safeSave(StandardPath::Type::PkgConfig, path,
-                                 [&configuration](int fd) {
-                                     RawConfig config;
+    RawConfig config;
 
-                                     configuration.save(config);
-                                     return writeAsIni(config, fd);
-                                 });
+    configuration.save(config);
+    return safeSaveAsIni(config, path);
 }
-}
+} // namespace fcitx

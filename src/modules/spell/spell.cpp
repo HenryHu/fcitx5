@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "spell.h"
 #include "config.h"
@@ -53,6 +53,15 @@ Spell::BackendMap::iterator Spell::findBackend(const std::string &language) {
     return backends_.end();
 }
 
+Spell::BackendMap::iterator Spell::findBackend(const std::string &language,
+                                               SpellProvider provider) {
+    auto iter = backends_.find(provider);
+    if (iter != backends_.end() && iter->second->checkDict(language)) {
+        return iter;
+    }
+    return backends_.end();
+}
+
 bool Spell::checkDict(const std::string &language) {
     auto iter = findBackend(language);
     return iter != backends_.end();
@@ -77,11 +86,23 @@ std::vector<std::string> Spell::hint(const std::string &language,
     return iter->second->hint(language, word, limit);
 }
 
+std::vector<std::string> Spell::hintWithProvider(const std::string &language,
+                                                 SpellProvider provider,
+                                                 const std::string &word,
+                                                 size_t limit) {
+    auto iter = findBackend(language, provider);
+    if (iter == backends_.end()) {
+        return {};
+    }
+
+    return iter->second->hint(language, word, limit);
+}
+
 class SpellModuleFactory : public AddonFactory {
     AddonInstance *create(AddonManager *manager) override {
         return new Spell(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::SpellModuleFactory)

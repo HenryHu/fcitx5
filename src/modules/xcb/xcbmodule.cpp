@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2015~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2015~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "xcbmodule.h"
 #include "config.h"
@@ -25,8 +25,11 @@
 namespace fcitx {
 
 XCBModule::XCBModule(Instance *instance) : instance_(instance) {
+    reloadConfig();
     openConnection("");
 }
+
+void XCBModule::reloadConfig() { readAsIni(config_, "conf/xcb.conf"); }
 
 void XCBModule::openConnection(const std::string &name_) {
     std::string name = name_;
@@ -52,10 +55,12 @@ void XCBModule::openConnection(const std::string &name_) {
 
 void XCBModule::removeConnection(const std::string &name) {
     auto iter = conns_.find(name);
-    if (iter != conns_.end()) {
-        onConnectionClosed(iter->second);
-        conns_.erase(iter);
+    if (iter == conns_.end()) {
+        return;
     }
+    onConnectionClosed(iter->second);
+    conns_.erase(iter);
+    FCITX_INFO() << "Disconnected from X11 Display " << name;
     if (name == mainDisplay_) {
         mainDisplay_.clear();
         if (instance_->quitWhenMainDisplayDisconnected()) {
@@ -164,6 +169,6 @@ public:
         return new XCBModule(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::XCBModuleFactory);

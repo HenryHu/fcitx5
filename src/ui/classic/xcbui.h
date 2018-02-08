@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #ifndef _FCITX_UI_CLASSIC_XCBUI_H_
 #define _FCITX_UI_CLASSIC_XCBUI_H_
 
@@ -53,6 +53,7 @@ public:
     const std::string &name() const { return name_; }
     xcb_connection_t *connection() const { return conn_; }
     xcb_ewmh_connection_t *ewmh() const { return ewmh_; }
+    xcb_window_t root() const { return root_; }
     int defaultScreen() const { return defaultScreen_; }
     xcb_colormap_t colorMap() const { return colorMap_; }
     xcb_visualid_t visualId() const;
@@ -66,7 +67,7 @@ public:
 
     const auto &screenRects() { return rects_; }
     int dpiByPosition(int x, int y);
-    int dpi(int dpi);
+    int scaledDPI(int dpi);
     const XCBFontOption &fontOption() const { return fontOption_; }
 
 private:
@@ -77,6 +78,7 @@ private:
     ClassicUI *parent_;
     std::string name_;
     xcb_connection_t *conn_;
+    xcb_window_t root_ = XCB_WINDOW_NONE;
     xcb_ewmh_connection_t *ewmh_;
     int defaultScreen_;
     xcb_colormap_t colorMap_;
@@ -100,7 +102,7 @@ private:
 
 void addEventMaskToWindow(xcb_connection_t *conn, xcb_window_t wid,
                           uint32_t mask);
-}
-}
+} // namespace classicui
+} // namespace fcitx
 
 #endif // _FCITX_UI_CLASSIC_XCBUI_H_

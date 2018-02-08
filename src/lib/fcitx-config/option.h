@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2015~2015 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2015~2015 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #ifndef _FCITX_CONFIG_OPTION_H_
 #define _FCITX_CONFIG_OPTION_H_
 
@@ -67,8 +67,33 @@ private:
     std::string description_;
 };
 
+class FCITXCONFIG_EXPORT ExternalOption : public OptionBase {
+public:
+    ExternalOption(Configuration *parent, std::string path,
+                   std::string description, std::string uri);
+
+    std::string typeString() const override;
+    void reset() override;
+    bool isDefault() const override;
+
+    void marshall(RawConfig &config) const override;
+    bool unmarshall(const RawConfig &config, bool partial) override;
+    std::unique_ptr<Configuration> subConfigSkeleton() const override;
+
+    bool equalTo(const OptionBase &other) const override;
+    void copyFrom(const OptionBase &other) override;
+
+    bool skipDescription() const override;
+    bool skipSave() const override;
+    void dumpDescription(RawConfig &config) const override;
+
+private:
+    std::string externalUri_;
+};
+
 template <typename T>
 struct NoConstrain {
+    using Type = T;
     bool check(const T &) const { return true; }
     void dumpDescription(RawConfig &) const {}
 };
@@ -79,14 +104,43 @@ struct NoAnnotation {
     void dumpDescription(RawConfig &) const {}
 };
 
+struct FontAnnotation {
+    bool skipDescription() const { return false; }
+    bool skipSave() const { return false; }
+    void dumpDescription(RawConfig &config) const {
+        config.setValueByPath("Font", "True");
+    }
+};
+
 struct HideInDescription {
     bool skipDescription() const { return true; }
     bool skipSave() const { return false; }
     void dumpDescription(RawConfig &) const {}
 };
 
+template <typename SubConstrain>
+struct ListConstrain {
+    ListConstrain(SubConstrain sub = SubConstrain()) : sub_(std::move(sub)) {}
+
+    using ElementType = typename SubConstrain::Type;
+    using Type = std::vector<ElementType>;
+    bool check(const Type &value) {
+        return std::all_of(
+            value.begin(), value.end(),
+            [this](const ElementType &ele) { return sub_.check(ele); });
+    }
+
+    void dumpDescription(RawConfig &config) const {
+        sub_.dumpDescription(*config.get("ListConstrain", true));
+    }
+
+private:
+    SubConstrain sub_;
+};
+
 class IntConstrain {
 public:
+    using Type = int;
     IntConstrain(int min = std::numeric_limits<int>::min(),
                  int max = std::numeric_limits<int>::max())
         : min_(min), max_(max) {}
@@ -103,6 +157,42 @@ public:
 private:
     int min_;
     int max_;
+};
+
+enum class KeyConstrainFlag { AllowModifierOnly, AllowModifierLess };
+
+using KeyConstrainFlags = Flags<KeyConstrainFlag>;
+
+class KeyConstrain {
+public:
+    using Type = Key;
+    KeyConstrain(KeyConstrainFlags flags) : flags_(flags) {}
+
+    bool check(const Key &key) const {
+        if (!flags_.test(KeyConstrainFlag::AllowModifierLess) &&
+            key.states() == 0) {
+            return false;
+        }
+
+        if (!flags_.test(KeyConstrainFlag::AllowModifierOnly) &&
+            key.isModifier()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    void dumpDescription(RawConfig &config) const {
+        if (flags_.test(KeyConstrainFlag::AllowModifierLess)) {
+            config["AllowModifierLess"] = "True";
+        }
+        if (flags_.test(KeyConstrainFlag::AllowModifierOnly)) {
+            config["AllowModifierOnly"] = "True";
+        }
+    }
+
+private:
+    KeyConstrainFlags flags_;
 };
 
 template <typename T>
@@ -295,8 +385,16 @@ template <typename T, typename Annotation>
 using OptionWithAnnotation =
     Option<T, NoConstrain<T>, DefaultMarshaller<T>, Annotation>;
 
+using KeyListOption = Option<KeyList, ListConstrain<KeyConstrain>,
+                             DefaultMarshaller<KeyList>, NoAnnotation>;
+
+static inline ListConstrain<KeyConstrain>
+KeyListConstrain(KeyConstrainFlags flags = KeyConstrainFlags()) {
+    return ListConstrain<KeyConstrain>(KeyConstrain(flags));
+}
+
 template <typename T>
 using HiddenOption = OptionWithAnnotation<T, HideInDescription>;
-}
+} // namespace fcitx
 
 #endif // _FCITX_CONFIG_OPTION_H_

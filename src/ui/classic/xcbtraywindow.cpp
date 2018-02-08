@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2017~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2017~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #include "xcbtraywindow.h"
 #include "fcitx/inputcontext.h"
 #include "fcitx/inputmethodentry.h"
@@ -41,7 +41,7 @@ namespace classicui {
 #define ATOM_ORIENTATION 3
 #define ATOM_VISUAL 4
 
-XCBTrayWindow::XCBTrayWindow(XCBUI *ui) : XCBWindow(ui, 22, 22) {
+XCBTrayWindow::XCBTrayWindow(XCBUI *ui) : XCBWindow(ui, 48, 48) {
     for (auto &separator : separatorActions_) {
         separator.setSeparator(true);
     }
@@ -81,6 +81,7 @@ XCBTrayWindow::XCBTrayWindow(XCBUI *ui) : XCBWindow(ui, 22, 22) {
     uiManager.registerAction(&restartAction_);
     uiManager.registerAction(&exitAction_);
 
+#if 0
     inputMethodMenu_.addAction(&testAction1_);
     inputMethodMenu_.addAction(&testAction2_);
     testAction1_.setMenu(&testMenu1_);
@@ -95,6 +96,7 @@ XCBTrayWindow::XCBTrayWindow(XCBUI *ui) : XCBWindow(ui, 22, 22) {
     uiManager.registerAction(&testAction2_);
     uiManager.registerAction(&testSubAction1_);
     uiManager.registerAction(&testSubAction2_);
+#endif
 }
 
 bool XCBTrayWindow::filterEvent(xcb_generic_event_t *event) {
@@ -122,7 +124,10 @@ bool XCBTrayWindow::filterEvent(xcb_generic_event_t *event) {
                 menu->show(Rect()
                                .setPosition(press->root_x, press->root_y)
                                .setSize(1, 1));
+            } else if (press->detail == XCB_BUTTON_INDEX_1) {
+                ui_->parent()->instance()->toggle();
             }
+            return true;
         }
         break;
     }
@@ -150,8 +155,6 @@ bool XCBTrayWindow::filterEvent(xcb_generic_event_t *event) {
                 xcb_icccm_set_wm_normal_hints(ui_->connection(), wid_,
                                               &size_hints);
             }
-
-            // TODO
             return true;
         }
         break;
@@ -306,7 +309,20 @@ void XCBTrayWindow::paint(cairo_t *c) {
                                   ImagePurpose::Tray);
     cairo_save(c);
     cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
-    cairo_set_source_surface(c, image, 0, 0);
+    double scaleW = 1.0, scaleH = 1.0;
+    if (image.width() != width() || image.height() != height()) {
+        scaleW = static_cast<double>(width()) / image.width();
+        scaleH = static_cast<double>(height()) / image.height();
+        if (scaleW > scaleH)
+            scaleH = scaleW;
+        else
+            scaleW = scaleH;
+    }
+    int aw = scaleW * image.width();
+    int ah = scaleH * image.height();
+
+    cairo_scale(c, scaleW, scaleH);
+    cairo_set_source_surface(c, image, (width() - aw) / 2, (height() - ah) / 2);
     cairo_paint(c);
     cairo_restore(c);
 }
@@ -395,8 +411,12 @@ void XCBTrayWindow::updateGroupMenu() {
         groupActions_.emplace_back();
         auto &groupAction = groupActions_.back();
         groupAction.setShortText(list[i]);
-        groupAction.connect<SimpleAction::Activated>([&imManager, groupName](
-            InputContext *) { imManager.setCurrentGroup(groupName); });
+        groupAction.connect<SimpleAction::Activated>(
+            [&imManager, groupName](InputContext *) {
+                imManager.setCurrentGroup(groupName);
+            });
+        groupAction.setCheckable(true);
+        groupAction.setChecked(list[i] == imManager.currentGroup().name());
 
         auto &uiManager = ui_->parent()->instance()->userInterfaceManager();
         uiManager.registerAction(&groupAction);
@@ -408,6 +428,7 @@ void XCBTrayWindow::updateInputMethodMenu() {
     auto &imManager = ui_->parent()->instance()->inputMethodManager();
     const auto &list = imManager.currentGroup().inputMethodList();
     inputMethodActions_.clear();
+    auto ic = ui_->parent()->instance()->mostRecentInputContext();
     for (size_t i = 0; i < list.size(); i++) {
         auto entry = imManager.entry(list[i].name());
         if (!entry) {
@@ -421,6 +442,10 @@ void XCBTrayWindow::updateInputMethodMenu() {
             [this, imName](InputContext *) {
                 ui_->parent()->instance()->setCurrentInputMethod(imName);
             });
+        inputMethodAction.setCheckable(true);
+        inputMethodAction.setChecked(
+            ic ? (ui_->parent()->instance()->inputMethod(ic) == imName)
+               : false);
 
         auto &uiManager = ui_->parent()->instance()->userInterfaceManager();
         uiManager.registerAction(&inputMethodAction);
@@ -428,4 +453,4 @@ void XCBTrayWindow::updateInputMethodMenu() {
     }
 }
 }
-}
+} // namespace fcitx

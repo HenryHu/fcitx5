@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2015~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2015~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #ifndef _FCITX_UTILS_UTF8_H_
 #define _FCITX_UTILS_UTF8_H_
 
@@ -104,14 +104,15 @@ inline bool isValidChar(uint32_t c) {
     return c != INVALID_CHAR && c != NOT_ENOUGH_SPACE;
 }
 
-/// \brief Get next UCS4 char from iter, do not cross end.
+/// \brief Get next UCS4 char from iter, do not cross end. May return
+/// INVALID_CHAR or NOT_ENOUGH_SPACE
 template <typename Iter>
 inline uint32_t getChar(Iter iter, Iter end) {
     const char *c = &(*iter);
     return fcitx_utf8_get_char_validated(c, std::distance(iter, end), nullptr);
 }
 
-/// \brief Get next UCS4 char
+/// \brief Get next UCS4 char, may return INVALID_CHAR or NOT_ENOUGH_SPACE
 template <typename T>
 inline uint32_t getChar(const T &s) {
     return getChar(std::begin(s), std::end(s));
@@ -225,10 +226,10 @@ auto MakeUTF8CharIterator(Iter iter, Iter end) {
 
 template <typename T>
 auto MakeUTF8CharRange(const T &str) {
-    return MakeIterRange(MakeUTF8CharIterator(str.begin(), str.end()),
-                         MakeUTF8CharIterator(str.end(), str.end()));
+    return MakeIterRange(MakeUTF8CharIterator(std::begin(str), std::end(str)),
+                         MakeUTF8CharIterator(std::end(str), std::end(str)));
 }
-}
-}
+} // namespace utf8
+} // namespace fcitx
 
 #endif // _FCITX_UTILS_UTF8_H_

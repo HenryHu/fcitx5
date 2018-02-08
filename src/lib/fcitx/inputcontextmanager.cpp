@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "inputcontextmanager.h"
 #include "fcitx-utils/intrusivelist.h"
@@ -43,7 +43,7 @@ struct container_hasher {
         return seed;
     }
 };
-}
+} // namespace
 
 namespace fcitx {
 
@@ -220,7 +220,7 @@ InputContext *InputContextManager::findByUUID(ICUUID uuid) {
 bool InputContextManager::foreach(const InputContextVisitor &visitor) {
     FCITX_D();
     for (auto &ic : d->inputContexts_) {
-        if (visitor(&ic)) {
+        if (!visitor(&ic)) {
             return false;
         }
     }
@@ -240,7 +240,7 @@ bool InputContextManager::foreachFocused(const InputContextVisitor &visitor) {
 bool InputContextManager::foreachGroup(const FocusGroupVisitor &visitor) {
     FCITX_D();
     for (auto &group : d->groups_) {
-        if (visitor(&group)) {
+        if (!visitor(&group)) {
             return false;
         }
     }
@@ -332,7 +332,7 @@ InputContextManager::factoryForName(const std::string &name) {
 }
 InputContextProperty *
 InputContextManager::property(InputContext &inputContext,
-                              InputContextPropertyFactory *factory) {
+                              const InputContextPropertyFactory *factory) {
     assert(factory->d_func()->manager_ == this);
     return InputContextManagerPrivate::toInputContextPrivate(inputContext)
         ->property(factory->d_func()->slot_);
@@ -410,4 +410,4 @@ InputContext *InputContextManager::mostRecentInputContext() {
     }
     return d->mostRecentInputContext_.get();
 }
-}
+} // namespace fcitx

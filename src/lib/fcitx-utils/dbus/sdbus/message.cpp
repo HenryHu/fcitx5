@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "../message.h"
 #include "../../unixfd.h"
@@ -116,7 +116,8 @@ std::string Message::member() const {
     if (!d->msg_) {
         return {};
     }
-    return sd_bus_message_get_member(d->msg_);
+    auto member = sd_bus_message_get_member(d->msg_);
+    return member ? member : "";
 }
 
 std::string Message::interface() const {
@@ -124,7 +125,8 @@ std::string Message::interface() const {
     if (!d->msg_) {
         return {};
     }
-    return sd_bus_message_get_interface(d->msg_);
+    auto interface = sd_bus_message_get_interface(d->msg_);
+    return interface ? interface : "";
 }
 
 std::string Message::signature() const {
@@ -134,7 +136,8 @@ std::string Message::signature() const {
 
 std::string Message::path() const {
     FCITX_D();
-    return sd_bus_message_get_path(d->msg_);
+    auto path = sd_bus_message_get_path(d->msg_);
+    return path ? path : "";
 }
 
 std::string Message::errorName() const {
@@ -466,5 +469,5 @@ Message &Message::operator>>(Variant &variant) {
     d->lastError_ = sd_bus_message_skip(d->msg_, "v");
     return *this;
 }
-}
-}
+} // namespace dbus
+} // namespace fcitx

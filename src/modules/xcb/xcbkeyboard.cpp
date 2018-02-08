@@ -1,21 +1,21 @@
-/*
-* Copyright (C) 2017~2017 by CSSlayer
-* wengxt@gmail.com
-*
-* This library is free software; you can redistribute it and/or modify
-* it under the terms of the GNU Lesser General Public License as
-* published by the Free Software Foundation; either version 2.1 of the
-* License, or (at your option) any later version.
-*
-* This library is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-* Lesser General Public License for more details.
-*
-* You should have received a copy of the GNU Lesser General Public
-* License along with this library; see the file COPYING. If not,
-* see <http://www.gnu.org/licenses/>.
-*/
+//
+// Copyright (C) 2017~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 // workaround xkb.h using explicit keyword problem
 #define explicit no_cxx_explicit
@@ -32,6 +32,7 @@
 #include "xcb_public.h"
 #include "xcbconnection.h"
 #include "xcbkeyboard.h"
+#include "xcbmodule.h"
 #include <xcb/xcbext.h>
 #include <xkbcommon/xkbcommon-x11.h>
 
@@ -120,10 +121,17 @@ XCBKeyboard::XCBKeyboard(XCBConnection *conn) : conn_(conn) {
     hasXKB_ = true;
     updateKeymap();
 
+    // Force refresh so we can apply xmodmap.
+    if (conn_->parent()->config().allowOverrideXKB.value())
+        setRMLVOToServer(xkbRule_, xkbModel_,
+                         stringutils::join(defaultLayouts_, ","),
+                         stringutils::join(defaultVariants_, ","), xkbOptions_);
+
     eventHandlers_.emplace_back(conn_->instance()->watchEvent(
         EventType::InputMethodGroupChanged, EventWatcherPhase::Default,
         [this](Event &) {
-            if (!hasXKB_) {
+            if (!hasXKB_ ||
+                !conn_->parent()->config().allowOverrideXKB.value()) {
                 return;
             }
             auto layoutAndVariant = parseLayout(conn_->instance()
@@ -236,12 +244,17 @@ void XCBKeyboard::initDefaultLayout() {
     conn_->instance()->setXkbParameters(conn_->focusGroup()->display(),
                                         names[0], names[1], names[4]);
 
+    FCITX_DEBUG() << names[0] << " " << names[1] << " " << names[2] << " "
+                  << names[3] << " " << names[4];
+
     if (!names[0].empty()) {
         xkbRule_ = names[0];
         xkbModel_ = names[1];
         xkbOptions_ = names[4];
-        defaultLayouts_ = stringutils::split(names[2], ",");
-        defaultVariants_ = stringutils::split(names[3], ",");
+        defaultLayouts_ = stringutils::split(
+            names[2], ",", stringutils::SplitBehavior::KeepEmpty);
+        defaultVariants_ = stringutils::split(
+            names[3], ",", stringutils::SplitBehavior::KeepEmpty);
     } else {
         xkbRule_ = DEFAULT_XKB_RULES;
         xkbModel_ = "pc101";
@@ -253,8 +266,11 @@ void XCBKeyboard::initDefaultLayout() {
 
 int XCBKeyboard::findLayoutIndex(const std::string &layout,
                                  const std::string &variant) {
+    FCITX_DEBUG() << "findLayoutIndex layout:" << layout
+                  << " variant:" << variant;
+    FCITX_DEBUG() << "defaultLayouts:" << defaultLayouts_;
+    FCITX_DEBUG() << "defaultVariants:" << defaultVariants_;
     for (size_t i = 0; i < defaultLayouts_.size(); i++) {
-
         if (defaultLayouts_[i] == layout &&
             ((i < defaultVariants_.size() && variant == defaultVariants_[i]) ||
              (i >= defaultVariants_.size() && variant.empty()))) {
@@ -300,7 +316,6 @@ void XCBKeyboard::addNewLayout(const std::string &layout,
             defaultVariants_.pop_back();
         }
         defaultLayouts_.insert(defaultLayouts_.begin(), layout);
-        ;
         defaultVariants_.insert(defaultVariants_.begin(), variant);
     } else {
         while (defaultLayouts_.size() >= 4) {
@@ -308,7 +323,6 @@ void XCBKeyboard::addNewLayout(const std::string &layout,
             defaultVariants_.pop_back();
         }
         defaultLayouts_.push_back(layout);
-        ;
         defaultVariants_.push_back(variant);
     }
 
@@ -460,6 +474,7 @@ void XCBKeyboard::setRMLVOToServer(const std::string &rule,
                             XCB_ATOM_STRING, 8, propData.size(),
                             propData.data());
     }
+    waitingForRefresh_ = true;
 }
 
 bool XCBKeyboard::setLayoutByName(const std::string &layout,
@@ -470,10 +485,12 @@ bool XCBKeyboard::setLayoutByName(const std::string &layout,
         return false;
     }
 
+    FCITX_DEBUG() << "Lock group " << index;
     auto addon = conn_->instance()->addonManager().addon("dbus", true);
     if (!addon || !addon->call<IDBusModule::lockGroup>(index)) {
         xcb_xkb_latch_lock_state(connection(), XCB_XKB_ID_USE_CORE_KBD, 0, 0,
                                  true, index, 0, false, 0);
+        xcb_flush(connection());
     }
     return true;
 }
@@ -506,6 +523,36 @@ bool XCBKeyboard::handleEvent(xcb_generic_event_t *event) {
                 &xkbEvent->new_keyboard_notify;
             if (ev->changed & XCB_XKB_NKN_DETAIL_KEYCODES) {
                 updateKeymap();
+            }
+
+            if (!*conn_->parent()->config().allowOverrideXKB) {
+                break;
+            }
+
+            if (ev->sequence != lastSequence_) {
+                lastSequence_ = ev->sequence;
+                xmodmapTimer_ = conn_->instance()->eventLoop().addTimeEvent(
+                    CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 10000, 0,
+                    [this](EventSourceTime *, uint64_t) {
+                        FCITX_DEBUG() << "Apply Xmodmap.";
+
+                        if (waitingForRefresh_) {
+                            waitingForRefresh_ = false;
+                            auto home = getenv("HOME");
+                            if (!home) {
+                                return true;
+                            }
+                            auto path = stringutils::joinPath(home, ".Xmodmap");
+                            if (!fs::isreg(path)) {
+                                path = stringutils::joinPath(home, ".xmodmap");
+                            }
+                            if (!fs::isreg(path)) {
+                                return true;
+                            }
+                            startProcess({"xmodmap", path});
+                        }
+                        return true;
+                    });
             }
             break;
         }

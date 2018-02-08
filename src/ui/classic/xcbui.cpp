@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2016 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2016 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "xcbui.h"
 #include "fcitx-utils/stringutils.h"
@@ -176,6 +176,7 @@ XCBUI::XCBUI(ClassicUI *parent, const std::string &name, xcb_connection_t *conn,
 
     xcb_screen_t *screen = xcb_aux_get_screen(conn_, defaultScreen_);
     addEventMaskToWindow(conn_, screen->root, XCB_EVENT_MASK_STRUCTURE_NOTIFY);
+    root_ = screen->root;
     fontOption_ = forcedDpi(conn_, screen);
     initScreen();
     refreshCompositeManager();
@@ -369,10 +370,14 @@ int XCBUI::dpiByPosition(int x, int y) {
         }
     }
 
-    return dpi(screenDpi);
+    return scaledDPI(screenDpi);
 }
 
-int XCBUI::dpi(int dpi) {
+int XCBUI::scaledDPI(int dpi) {
+    if (!*parent_->config().perScreenDPI) {
+        // CLASSICUI_DEBUG() << "Use font dpi: " << fontOption_.dpi;
+        return fontOption_.dpi;
+    }
     if (dpi < 0) {
         return fontOption_.dpi;
     }
@@ -404,5 +409,5 @@ void XCBUI::setEnableTray(bool enable) {
         updateTray();
     }
 }
-}
-}
+} // namespace classicui
+} // namespace fcitx

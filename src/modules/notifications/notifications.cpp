@@ -1,23 +1,23 @@
-/*
- * Copyright (C) 2017~2017 by CSSlayer
- * wengxt@gmail.com
- * Copyright (C) 2012~2013 by Yichao Yu
- * yyc1992@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2017~2017 by CSSlayer
+// wengxt@gmail.com
+// Copyright (C) 2012~2013 by Yichao Yu
+// yyc1992@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "notifications.h"
 #include "dbus_public.h"
@@ -111,13 +111,17 @@ Notifications::Notifications(Instance *instance)
 
 Notifications::~Notifications() {}
 
-void Notifications::reloadConfig() {
-    readAsIni(config_, "conf/notifications.conf");
-
+void Notifications::updateConfig() {
     hiddenNotifications_.clear();
     for (const auto &id : config_.hiddenNotifications.value()) {
         hiddenNotifications_.insert(id);
     }
+}
+
+void Notifications::reloadConfig() {
+    readAsIni(config_, "conf/notifications.conf");
+
+    updateConfig();
 }
 
 void Notifications::save() {
@@ -216,17 +220,19 @@ void Notifications::showTip(const std::string &tipId,
         return;
     }
     std::vector<std::string> actions = {"dont-show", _("Do not show again")};
-    if (capabilities_ & NotificationsCapability::Actions) {
+    if (!capabilities_.test(NotificationsCapability::Actions)) {
         actions.clear();
     }
-    lastTipId_ = sendNotification(appName, lastTipId_, appIcon, summary, body,
-                                  actions, timeout,
-                                  [this, tipId](const std::string &action) {
-                                      if (action == "dont-show") {
-                                          hiddenNotifications_.insert(tipId);
-                                      }
-                                  },
-                                  {});
+    lastTipId_ = sendNotification(
+        appName, lastTipId_, appIcon, summary, body, actions, timeout,
+        [this, tipId](const std::string &action) {
+            if (action == "dont-show") {
+                if (hiddenNotifications_.insert(tipId).second) {
+                    save();
+                }
+            }
+        },
+        {});
 }
 
 class NotificationsModuleFactory : public AddonFactory {
@@ -234,6 +240,6 @@ class NotificationsModuleFactory : public AddonFactory {
         return new Notifications(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::NotificationsModuleFactory)

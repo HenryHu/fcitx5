@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2017~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2017~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 #include "inputwindow.h"
 #include "classicui.h"
 #include "fcitx-utils/color.h"
@@ -209,8 +209,8 @@ void InputWindow::update(InputContext *inputContext) {
 }
 
 std::pair<unsigned int, unsigned int> InputWindow::sizeHint() {
-    auto fontDesc = pango_font_description_from_string(
-        parent_->theme().inputPanel->font->c_str());
+    auto fontDesc =
+        pango_font_description_from_string(parent_->config().font->c_str());
     pango_context_set_font_description(context_.get(), fontDesc);
     pango_cairo_context_set_resolution(context_.get(), dpi_);
     pango_font_description_free(fontDesc);
@@ -441,5 +441,5 @@ void InputWindow::paint(cairo_t *cr, unsigned int width,
     }
     cairo_restore(cr);
 }
-}
-}
+} // namespace classicui
+} // namespace fcitx

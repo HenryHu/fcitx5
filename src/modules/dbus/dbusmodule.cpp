@@ -1,21 +1,21 @@
-/*
- * Copyright (C) 2016~2017 by CSSlayer
- * wengxt@gmail.com
- *
- * This library is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of the
- * License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; see the file COPYING. If not,
- * see <http://www.gnu.org/licenses/>.
- */
+//
+// Copyright (C) 2016~2017 by CSSlayer
+// wengxt@gmail.com
+//
+// This library is free software; you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation; either version 2.1 of the
+// License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this library; see the file COPYING. If not,
+// see <http://www.gnu.org/licenses/>.
+//
 
 #include "dbusmodule.h"
 #include "fcitx-config/dbushelper.h"
@@ -28,6 +28,7 @@
 #include "fcitx/inputmethodentry.h"
 #include "fcitx/inputmethodmanager.h"
 #include "keyboard_public.h"
+#include "xcb_public.h"
 #include <set>
 
 #define FCITX_DBUS_SERVICE "org.fcitx.Fcitx5"
@@ -126,17 +127,19 @@ public:
         const std::string &groupName, const std::string &defaultLayout,
         const std::vector<DBusStruct<std::string, std::string>> &entries) {
         auto &imManager = instance_->inputMethodManager();
-        if (imManager.group(groupName)) {
-            InputMethodGroup group(groupName);
-            group.setDefaultLayout(defaultLayout);
-            for (auto &entry : entries) {
-                group.inputMethodList().push_back(
-                    InputMethodGroupItem(std::get<0>(entry))
-                        .setLayout(std::get<1>(entry)));
-            }
-            group.setDefaultInputMethod("");
-            imManager.setGroup(std::move(group));
+        if (!imManager.group(groupName)) {
+            return;
         }
+        InputMethodGroup group(groupName);
+        group.setDefaultLayout(defaultLayout);
+        for (auto &entry : entries) {
+            group.inputMethodList().push_back(
+                InputMethodGroupItem(std::get<0>(entry))
+                    .setLayout(std::get<1>(entry)));
+        }
+        group.setDefaultInputMethod("");
+        imManager.setGroup(std::move(group));
+        imManager.save();
     }
 
     std::vector<DBusStruct<std::string, std::string, std::vector<std::string>,
@@ -159,10 +162,10 @@ public:
                 std::get<2>(layoutItem) = languages;
                 auto &variants = std::get<3>(layoutItem);
                 module_->keyboard()->call<IKeyboardEngine::foreachVariant>(
-                    layout, [&variants,
-                             this](const std::string &variant,
-                                   const std::string &description,
-                                   const std::vector<std::string> &languages) {
+                    layout,
+                    [&variants](const std::string &variant,
+                                const std::string &description,
+                                const std::vector<std::string> &languages) {
                         variants.emplace_back();
                         auto &variantItem = variants.back();
                         std::get<0>(variantItem) = variant;
@@ -375,6 +378,16 @@ public:
         instance_->globalConfig().safeSave();
     }
 
+    void openX11Connection(const std::string &name) {
+        if (auto xcb = module_->xcb()) {
+            xcb->call<IXCBModule::openConnection>(name);
+        } else {
+            throw dbus::MethodCallError(
+                "org.freedesktop.DBus.Error.InvalidArgs",
+                "XCB addon is not available.");
+        }
+    }
+
 private:
     DBusModule *module_;
     Instance *instance_;
@@ -423,6 +436,7 @@ private:
 
     FCITX_OBJECT_VTABLE_METHOD(getAddons, "GetAddons", "", "a(sssibb)");
     FCITX_OBJECT_VTABLE_METHOD(setAddonsState, "SetAddonsState", "a(sb)", "");
+    FCITX_OBJECT_VTABLE_METHOD(openX11Connection, "OpenX11Connection", "s", "");
 };
 
 DBusModule::DBusModule(Instance *instance)
@@ -438,10 +452,20 @@ DBusModule::DBusModule(Instance *instance)
         throw std::runtime_error("Unable to request dbus name");
     }
 
+    disconnectedSlot_ = bus_->addMatch(
+        dbus::MatchRule("org.freedesktop.DBus.Local",
+                        "/org/freedesktop/DBus/Local",
+                        "org.freedesktop.DBus.Local", "Disconnected"),
+        [instance](dbus::Message) {
+            FCITX_INFO() << "Disconnected from DBus, exiting...";
+            instance->exit();
+            return true;
+        });
+
     selfWatcher_ = serviceWatcher_->watchService(
         FCITX_DBUS_SERVICE,
-        [this, uniqueName, instance](const std::string &, const std::string &,
-                                     const std::string &newName) {
+        [uniqueName, instance](const std::string &, const std::string &,
+                               const std::string &newName) {
             if (newName != uniqueName) {
                 instance->exit();
             }
@@ -477,6 +501,6 @@ class DBusModuleFactory : public AddonFactory {
         return new DBusModule(manager->instance());
     }
 };
-}
+} // namespace fcitx
 
 FCITX_ADDON_FACTORY(fcitx::DBusModuleFactory)
