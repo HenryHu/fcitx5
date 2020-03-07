@@ -318,6 +318,7 @@ public:
 
     std::vector<ScopedConnection> connections_;
     std::unique_ptr<EventSourceTime> imGroupInfoTimer_;
+    std::unique_ptr<EventSourceTime> focusInImInfoTimer_;
 
     std::unordered_map<std::string,
                        std::unordered_map<std::string, xkb_keymap_autoptr>>
@@ -542,7 +543,7 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(d->watchEvent(
         EventType::InputContextKeyEvent, EventWatcherPhase::ReservedFirst,
-        [this, d](Event &event) {
+        [d](Event &event) {
             auto &keyEvent = static_cast<KeyEvent &>(event);
             auto ic = keyEvent.inputContext();
             auto inputState = ic->propertyFor(&d->inputStateFactory);
@@ -596,7 +597,7 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(
         watchEvent(EventType::InputContextKeyEvent,
-                   EventWatcherPhase::InputMethod, [this, d](Event &event) {
+                   EventWatcherPhase::InputMethod, [this](Event &event) {
                        auto &keyEvent = static_cast<KeyEvent &>(event);
                        auto ic = keyEvent.inputContext();
                        auto engine = inputMethodEngine(ic);
@@ -643,9 +644,24 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(d->watchEvent(
         EventType::InputContextFocusIn, EventWatcherPhase::ReservedFirst,
-        [this](Event &event) {
+        [this, d](Event &event) {
             auto &icEvent = static_cast<InputContextEvent &>(event);
             activateInputMethod(icEvent);
+            if (!d->globalConfig_.showInputMethodInformationWhenFocusIn()) {
+                return;
+            }
+            // Give some time because the cursor location may need some time
+            // to be updated.
+            d->focusInImInfoTimer_ = d->eventLoop_.addTimeEvent(
+                CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 30000, 0,
+                [this, icRef = icEvent.inputContext()->watch()](
+                    EventSourceTime *, uint64_t) {
+                    // Check if ic is still valid and has focus.
+                    if (auto ic = icRef.get(); ic && ic->hasFocus()) {
+                        showInputMethodInformation(ic);
+                    }
+                    return true;
+                });
         }));
     d->eventWatchers_.emplace_back(d->watchEvent(
         EventType::InputContextFocusOut, EventWatcherPhase::ReservedFirst,
@@ -668,7 +684,7 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(d->watchEvent(
         EventType::InputContextReset, EventWatcherPhase::ReservedFirst,
-        [this, d](Event &event) {
+        [d](Event &event) {
             auto &icEvent = static_cast<InputContextEvent &>(event);
             auto ic = icEvent.inputContext();
             auto inputState = ic->propertyFor(&d->inputStateFactory);
@@ -676,7 +692,7 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(
         watchEvent(EventType::InputContextReset, EventWatcherPhase::InputMethod,
-                   [this, d](Event &event) {
+                   [this](Event &event) {
                        auto &icEvent = static_cast<InputContextEvent &>(event);
                        auto ic = icEvent.inputContext();
                        if (!ic->hasFocus()) {
@@ -760,7 +776,7 @@ Instance::Instance(int argc, char **argv) {
 
     d->eventWatchers_.emplace_back(d->watchEvent(
         EventType::InputContextUpdateUI, EventWatcherPhase::ReservedFirst,
-        [this, d](Event &event) {
+        [d](Event &event) {
             auto &icEvent = static_cast<InputContextUpdateUIEvent &>(event);
             if (icEvent.immediate()) {
                 d->uiManager_.update(icEvent.component(),
@@ -774,7 +790,7 @@ Instance::Instance(int argc, char **argv) {
         }));
     d->eventWatchers_.emplace_back(d->watchEvent(
         EventType::InputContextDestroyed, EventWatcherPhase::ReservedFirst,
-        [this, d](Event &event) {
+        [d](Event &event) {
             auto &icEvent = static_cast<InputContextEvent &>(event);
             d->uiManager_.expire(icEvent.inputContext());
         }));
@@ -885,8 +901,6 @@ void Instance::handleSignal() {
         if (signo == SIGINT || signo == SIGTERM || signo == SIGQUIT ||
             signo == SIGXCPU) {
             exit();
-        } else if (signo == SIGHUP) {
-            restart();
         } else if (signo == SIGUSR1) {
             reloadConfig();
         }
@@ -1311,7 +1325,7 @@ bool Instance::activate(InputContext *ic) {
     if (!canTrigger()) {
         return false;
     }
-    if (!inputState->active_) {
+    if (inputState->active_) {
         return true;
     }
     inputState->active_ = true;
@@ -1410,6 +1424,11 @@ InputContext *Instance::lastFocusedInputContext() {
 InputContext *Instance::mostRecentInputContext() {
     FCITX_D();
     return d->icManager_.mostRecentInputContext();
+}
+
+void Instance::flushUI() {
+    FCITX_D();
+    d->uiManager_.flush();
 }
 
 int scoreForGroup(FocusGroup *group, const std::string &displayHint) {
@@ -1574,7 +1593,7 @@ void Instance::setXkbParameters(const std::string &display,
 
     if (resetState) {
         d->keymapCache_[display].clear();
-        d->icManager_.foreach([this, d, &display](InputContext *ic) {
+        d->icManager_.foreach([d, &display](InputContext *ic) {
             if (ic->display() == display) {
                 auto inputState = ic->propertyFor(&d->inputStateFactory);
                 inputState->resetXkbState();
@@ -1591,4 +1610,4 @@ void Instance::updateXkbStateMask(const std::string &display,
     d->stateMask_[display] =
         std::make_tuple(depressed_mods, latched_mods, locked_mods);
 }
-}
+} // namespace fcitx

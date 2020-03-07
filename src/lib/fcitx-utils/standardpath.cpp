@@ -65,6 +65,8 @@ void StandardPathTempFile::removeTemp() {
 
 void StandardPathTempFile::close() {
     if (fd_.fd() >= 0) {
+        // sync first.
+        fsync(fd_.fd());
         // close it
         fd_.reset();
         if (rename(tempPath_.c_str(), path_.c_str()) < 0) {
@@ -145,7 +147,7 @@ public:
         if (!dir.empty() && strcmp(env, "XDG_RUNTIME_DIR") == 0) {
             struct stat buf;
             if (stat(dir.c_str(), &buf) != 0 || buf.st_uid != geteuid() ||
-                buf.st_mode != 0700) {
+                (buf.st_mode & 0777) != S_IRWXU) {
                 return {};
             }
         }

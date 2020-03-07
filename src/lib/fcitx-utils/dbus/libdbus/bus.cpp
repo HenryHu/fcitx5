@@ -23,11 +23,13 @@
 #include "bus_p.h"
 #include "config.h"
 #include "message_p.h"
-#include "objectvtable_p.h"
+#include "objectvtable_p_libdbus.h"
 #include <unistd.h>
 
 namespace fcitx {
 namespace dbus {
+
+FCITX_DEFINE_LOG_CATEGORY(libdbus_logcategory, "libdbus");
 
 DBusHandlerResult DBusMessageCallback(DBusConnection *, DBusMessage *message,
                                       void *userdata) {
@@ -132,7 +134,7 @@ DBusObjectVTableSlot *BusPrivate::findSlot(const std::string &path,
     return nullptr;
 }
 
-bool BusPrivate::objectVTableCallback(Message message) {
+bool BusPrivate::objectVTableCallback(Message &message) {
     if (!objectRegistration_.hasKey(message.path())) {
         return false;
     }
@@ -214,6 +216,9 @@ bool BusPrivate::objectVTableCallback(Message message) {
                 auto reply = message.createReply();
                 reply << Container(Container::Type::Array, Signature("{sv}"));
                 for (auto &pair : slot->objPriv_->properties_) {
+                    if (pair.second->options().test(PropertyOption::Hidden)) {
+                        continue;
+                    }
                     reply << Container(Container::Type::DictEntry,
                                        Signature("sv"));
                     reply << pair.first;
@@ -234,7 +239,7 @@ bool BusPrivate::objectVTableCallback(Message message) {
             if (method->signature() != message.signature()) {
                 return false;
             }
-            return method->handler()(message);
+            return method->handler()(std::move(message));
         }
         return false;
     }
@@ -449,12 +454,13 @@ dbus_bool_t DBusAddTimeout(DBusTimeout *timeout, void *data) {
         return false;
     }
     int interval = dbus_timeout_get_interval(timeout);
+    FCITX_LIBDBUS_DEBUG() << "DBusAddTimeout: " << interval;
     auto ref = bus->watch();
     try {
         bus->timeWatchers_.emplace(
             timeout,
             bus->loop_->addTimeEvent(
-                CLOCK_MONOTONIC, interval * 1000ull, 0,
+                CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + interval * 1000ull, 0,
                 [timeout, ref](EventSourceTime *event, uint64_t) {
                     auto refPivot = ref;
                     if (dbus_timeout_get_enabled(timeout)) {
@@ -541,7 +547,12 @@ void Bus::detachEventLoop() {
 std::unique_ptr<Slot> Bus::addMatch(MatchRule rule, MessageCallback callback) {
     FCITX_D();
     auto slot = std::make_unique<DBusMatchSlot>();
+
+    FCITX_LIBDBUS_DEBUG() << "Add match for rule " << rule.rule()
+                          << " in rule set " << d->matchRuleSet_.hasKey(rule);
+
     slot->ruleRef_ = d->matchRuleSet_.add(rule, 1);
+
     if (!slot->ruleRef_) {
         return nullptr;
     }
@@ -619,8 +630,6 @@ bool Bus::addObjectVTable(const std::string &path, const std::string &interface,
 
     auto slot = std::make_unique<DBusObjectVTableSlot>(path, interface, &obj,
                                                        obj.d_func());
-    DBusObjectPathVTable vtable;
-    memset(&vtable, 0, sizeof(vtable));
 
     auto handler = d->objectRegistration_.add(path, slot->watch());
     if (!handler) {

@@ -53,22 +53,20 @@ int main() {
                          return true;
                      }));
 
-    std::unique_ptr<EventSource> source4(
-        e.addDeferEvent([&e, pipefd](EventSource *) {
-            FCITX_INFO() << "DEFER";
-            return false;
-        }));
+    std::unique_ptr<EventSource> source4(e.addDeferEvent([](EventSource *) {
+        FCITX_INFO() << "DEFER";
+        return false;
+    }));
 
-    std::unique_ptr<EventSource> source5(
-        e.addExitEvent([&e, pipefd](EventSource *) {
-            FCITX_INFO() << "EXIT";
-            return false;
-        }));
+    std::unique_ptr<EventSource> source5(e.addExitEvent([](EventSource *) {
+        FCITX_INFO() << "EXIT";
+        return false;
+    }));
 
     int times = 10;
     std::unique_ptr<EventSource> sourceX(
         e.addTimeEvent(CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 1000000ul, 0,
-                       [&e, &times, pipefd](EventSource *source, uint64_t) {
+                       [&times](EventSource *source, uint64_t) {
                            FCITX_INFO() << "Recur:" << times;
                            times--;
                            if (times < 0) {
@@ -79,21 +77,21 @@ int main() {
     sourceX->setEnabled(true);
 
     int times2 = 10;
-    std::unique_ptr<EventSource> sourceX2(e.addTimeEvent(
-        CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 1000000ul, 0,
-        [&e, &sourceX2, &times2, pipefd](EventSourceTime *source, uint64_t t) {
-            FCITX_INFO() << "Recur 2:" << times2 << " " << t;
-            times2--;
-            if (times2 > 0) {
-                source->setNextInterval(100000);
-                source->setOneShot();
-            }
-            return false;
-        }));
+    std::unique_ptr<EventSource> sourceX2(
+        e.addTimeEvent(CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 1000000ul, 0,
+                       [&times2](EventSourceTime *source, uint64_t t) {
+                           FCITX_INFO() << "Recur 2:" << times2 << " " << t;
+                           times2--;
+                           if (times2 > 0) {
+                               source->setNextInterval(100000);
+                               source->setOneShot();
+                           }
+                           return false;
+                       }));
 
     std::unique_ptr<EventSource> source2(
         e.addTimeEvent(CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 1000000ul, 0,
-                       [&e, pipefd](EventSource *, uint64_t) {
+                       [pipefd](EventSource *, uint64_t) {
                            FCITX_INFO() << "WRITE";
                            auto r = write(pipefd[1], "a", 1);
                            FCITX_ASSERT(r == 1);
@@ -102,7 +100,7 @@ int main() {
 
     std::unique_ptr<EventSource> source3(
         e.addTimeEvent(CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 2000000ul, 0,
-                       [&e, pipefd](EventSource *, uint64_t) {
+                       [pipefd](EventSource *, uint64_t) {
                            FCITX_INFO() << "CLOSE";
                            close(pipefd[1]);
                            return false;

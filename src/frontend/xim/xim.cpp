@@ -27,6 +27,12 @@
 #include <xcb/xcb_aux.h>
 #include <xkbcommon/xkbcommon.h>
 
+FCITX_DEFINE_LOG_CATEGORY(xim, "xim")
+FCITX_DEFINE_LOG_CATEGORY(xim_key, "xim_key")
+
+#define XIM_DEBUG() FCITX_LOGC(::xim, Debug)
+#define XIM_KEY_DEBUG() FCITX_LOGC(::xim_key, Debug)
+
 namespace {
 
 static uint32_t style_array[] = {
@@ -80,7 +86,11 @@ public:
 
         filter_ = parent_->xcb()->call<fcitx::IXCBModule::addEventFilter>(
             name, [this](xcb_connection_t *, xcb_generic_event_t *event) {
-                return xcb_im_filter_event(im_.get(), event);
+                bool result = xcb_im_filter_event(im_.get(), event);
+                if (result) {
+                    XIM_DEBUG() << "XIM filtered event";
+                }
+                return result;
             });
 
         auto retry = 3;
@@ -201,6 +211,8 @@ protected:
         if (!compoundText) {
             return;
         }
+        XIM_DEBUG() << "XIM commit: " << text;
+
         xcb_im_commit_string(server_->im(), xic_, XCB_XIM_LOOKUP_CHARS,
                              compoundText.get(), compoundTextLength, 0);
     }
@@ -341,6 +353,8 @@ void XIMServer::callback(xcb_im_client_t *client, xcb_im_input_context_t *xic,
         return;
     }
 
+    XIM_DEBUG() << "XIM header opcode: " << static_cast<int>(hdr->major_opcode);
+
     XIMInputContext *ic = nullptr;
     if (hdr->major_opcode != XCB_XIM_CREATE_IC) {
         ic = static_cast<XIMInputContext *>(xcb_im_input_context_get_data(xic));
@@ -374,6 +388,9 @@ void XIMServer::callback(xcb_im_client_t *client, xcb_im_input_context_t *xic,
                            KeyStates(xevent->state), xevent->detail),
                        (xevent->response_type & ~0x80) == XCB_KEY_RELEASE,
                        xevent->time);
+        XIM_KEY_DEBUG() << "XIM Key Event: "
+                        << static_cast<int>(xevent->response_type) << " "
+                        << event.rawKey().toString();
         if (!ic->hasFocus()) {
             ic->focusIn();
         }
@@ -381,6 +398,8 @@ void XIMServer::callback(xcb_im_client_t *client, xcb_im_input_context_t *xic,
         if (!ic->keyEvent(event)) {
             xcb_im_forward_event(im(), xic, xevent);
         }
+        // Make sure xcb ui can be updated.
+        instance()->flushUI();
         break;
     }
     case XCB_XIM_RESET_IC:

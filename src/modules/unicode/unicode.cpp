@@ -93,7 +93,6 @@ Unicode::Unicode(Instance *instance)
                 keyEvent.filterAndAccept();
                 return;
             }
-
         }));
 
     auto reset = [this](Event &event) {
@@ -132,7 +131,7 @@ Unicode::Unicode(Instance *instance)
                 if (idx >= 0) {
                     keyEvent.accept();
                     if (idx < candidateList->size()) {
-                        candidateList->candidate(idx)->select(inputContext);
+                        candidateList->candidate(idx).select(inputContext);
                     }
                     return;
                 }
@@ -228,7 +227,7 @@ void Unicode::updateUI(InputContext *inputContext) {
         candidateList->setPageSize(instance_->globalConfig().defaultPageSize());
         for (auto c : result) {
             if (utf8::UCS4IsValid(c)) {
-                candidateList->append(new UnicodeCandidateWord(this, c));
+                candidateList->append<UnicodeCandidateWord>(this, c);
             }
         }
         candidateList->setSelectionKey(selectionKeys_);

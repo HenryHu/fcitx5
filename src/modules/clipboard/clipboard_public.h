@@ -19,7 +19,6 @@
 #ifndef _FCITX_MODULES_CLIPBOARD_CLIPBOARD_PUBLIC_H_
 #define _FCITX_MODULES_CLIPBOARD_CLIPBOARD_PUBLIC_H_
 
-#include <fcitx-utils/dbus/bus.h>
 #include <fcitx/addoninstance.h>
 #include <fcitx/inputcontext.h>
 #include <string>

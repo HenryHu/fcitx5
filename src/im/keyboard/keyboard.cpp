@@ -20,6 +20,7 @@
 #include "keyboard.h"
 #include "chardata.h"
 #include "config.h"
+#include "emoji_public.h"
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/cutf8.h"
@@ -162,7 +163,7 @@ static std::string findBestLanguage(const IsoCodes &isocodes,
 
 KeyboardEngine::KeyboardEngine(Instance *instance) : instance_(instance) {
     registerDomain("xkeyboard-config", XKEYBOARDCONFIG_DATADIR "/locale");
-    isoCodes_.read(ISOCODES_ISO639_XML, ISOCODES_ISO3166_XML);
+    isoCodes_.read(ISOCODES_ISO639_JSON, ISOCODES_ISO3166_JSON);
     auto xcb = instance_->addonManager().addon("xcb");
     std::string rule;
     if (xcb) {
@@ -191,7 +192,7 @@ KeyboardEngine::~KeyboardEngine() {}
 
 std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
     std::vector<InputMethodEntry> result;
-    bool usExists;
+    bool usExists = false;
     for (auto &p : xkbRules_.layoutInfos()) {
         auto &layoutInfo = p.second;
         auto language = findBestLanguage(isoCodes_, layoutInfo.description,
@@ -378,7 +379,7 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
             int idx = event.key().keyListIndex(selectionKeys_);
             if (idx >= 0 && idx < candList->size()) {
                 event.filterAndAccept();
-                candList->candidate(idx)->select(inputContext);
+                candList->candidate(idx).select(inputContext);
                 return;
             }
 
@@ -482,9 +483,7 @@ std::string KeyboardEngine::preeditString(InputContext *inputContext) {
     auto candidate = inputContext->inputPanel().candidateList();
     std::string preedit;
     if (candidate && candidate->cursorIndex() >= 0) {
-        return candidate->candidate(candidate->cursorIndex())
-            ->text()
-            .toString();
+        return candidate->candidate(candidate->cursorIndex()).text().toString();
     }
     return state->buffer_.userInput();
 }
@@ -508,12 +507,29 @@ void KeyboardEngine::updateCandidate(const InputMethodEntry &entry,
     auto results = spell()->call<ISpell::hint>(entry.languageCode(),
                                                state->buffer_.userInput(),
                                                config_.pageSize.value());
+    if (config_.enableEmoji.value() && emoji()) {
+        auto emojiResults = emoji()->call<IEmoji::query>(
+            entry.languageCode(), state->buffer_.userInput(), true);
+        // If we have emoji result and spell result is full, pop one from the
+        // original result, because emoji matching is always exact. Which means
+        // the spell is right.
+        if (!emojiResults.empty() &&
+            static_cast<int>(results.size()) == config_.pageSize.value()) {
+            results.pop_back();
+        }
+        size_t i = 0;
+        while (i < emojiResults.size() &&
+               static_cast<int>(results.size()) < config_.pageSize.value()) {
+            results.push_back(emojiResults[i]);
+            i++;
+        }
+    }
 
     auto candidateList = std::make_unique<CommonCandidateList>();
     auto spellType = guessSpellType(state->buffer_.userInput());
     for (const auto &result : results) {
-        candidateList->append(new KeyboardCandidateWord(
-            this, Text(formatWord(result, spellType))));
+        candidateList->append<KeyboardCandidateWord>(
+            this, Text(formatWord(result, spellType)));
     }
     candidateList->setSelectionKey(selectionKeys_);
     candidateList->setCursorIncludeUnselected(true);

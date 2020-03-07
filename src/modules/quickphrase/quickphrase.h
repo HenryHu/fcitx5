@@ -51,7 +51,7 @@ FCITX_CONFIGURATION(
         chooseModifier{this, "Choose Modifier", "Choose key modifier",
                        QuickPhraseChooseModifier::None};
     ExternalOption editor{this, "Editor", _("Editor"),
-                          "gui://data/QuickPhrase.mb"};);
+                          "fcitx://config/addon/quickphrase/editor"};);
 
 class QuickPhraseState;
 class QuickPhrase final : public AddonInstance {
@@ -66,6 +66,12 @@ public:
     void setConfig(const RawConfig &config) override {
         config_.load(config, true);
         safeSaveAsIni(config_, "conf/quickphrase.conf");
+    }
+    void setSubConfig(const std::string &path,
+                      const fcitx::RawConfig &) override {
+        if (path == "editor") {
+            reloadConfig();
+        }
     }
 
     void reloadConfig() override;

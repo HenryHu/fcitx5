@@ -75,6 +75,7 @@ private:
 
 struct FCITXUTILS_EXPORT VariantHelperBase {
 public:
+    virtual ~VariantHelperBase() = default;
     virtual std::shared_ptr<void> copy(const void *) const = 0;
     virtual void serialize(dbus::Message &msg, const void *data) const = 0;
     virtual void print(LogMessageBuilder &builder, const void *data) const = 0;
@@ -130,7 +131,7 @@ private:
 };
 
 class Message;
-typedef std::function<bool(Message message)> MessageCallback;
+typedef std::function<bool(Message &message)> MessageCallback;
 class Slot;
 
 enum class MessageType {
@@ -212,7 +213,7 @@ class FCITXUTILS_EXPORT Message {
 public:
     Message();
 
-    FCITX_DECLARE_VIRTUAL_DTOR_COPY_AND_MOVE(Message);
+    FCITX_DECLARE_VIRTUAL_DTOR_MOVE(Message);
     Message createReply() const;
     Message createError(const char *name, const char *message) const;
 

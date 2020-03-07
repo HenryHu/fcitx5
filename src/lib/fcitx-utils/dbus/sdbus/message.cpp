@@ -18,10 +18,10 @@
 //
 
 #include "../message.h"
+#include "../../misc_p.h"
 #include "../../unixfd.h"
 #include "../variant.h"
 #include "bus_p.h"
-#include "fcitx/misc_p.h"
 #include "message_p.h"
 #include <atomic>
 #include <fcntl.h>
@@ -55,7 +55,7 @@ static char toSDBusType(Container::Type type) {
 
 Message::Message() : d_ptr(std::make_unique<MessagePrivate>()) {}
 
-FCITX_DEFINE_DPTR_COPY_AND_DEFAULT_DTOR_AND_MOVE(Message)
+FCITX_DEFINE_DEFAULT_DTOR_AND_MOVE(Message)
 
 Message Message::createReply() const {
     FCITX_D();

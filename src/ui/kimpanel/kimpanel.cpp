@@ -32,6 +32,7 @@
 #include "fcitx/inputmethodmanager.h"
 #include "fcitx/instance.h"
 #include "fcitx/menu.h"
+#include "fcitx/misc_p.h"
 #include "fcitx/userinterfacemanager.h"
 
 namespace fcitx {
@@ -42,13 +43,13 @@ public:
     KimpanelProxy(Kimpanel *parent, dbus::Bus *bus)
         : bus_(bus), slot_(bus_->addMatch(dbus::MatchRule("org.kde.impanel", "",
                                                           "org.kde.impanel"),
-                                          [parent](dbus::Message msg) {
+                                          [parent](dbus::Message &msg) {
                                               parent->msgV1Handler(msg);
                                               return true;
                                           })),
           slot2_(bus_->addMatch(
               dbus::MatchRule("org.kde.impanel", "", "org.kde.impanel2"),
-              [parent](dbus::Message msg) {
+              [parent](dbus::Message &msg) {
                   parent->msgV2Handler(msg);
                   return true;
               })) {}
@@ -263,18 +264,18 @@ void Kimpanel::updateInputPanel(InputContext *inputContext) {
         }
         if (candidateList) {
             for (int i = 0, e = candidateList->size(); i < e; i++) {
-                auto candidate = candidateList->candidate(i);
-                if (candidate->isPlaceHolder()) {
+                auto &candidate = candidateList->candidate(i);
+                if (candidate.isPlaceHolder()) {
                     continue;
                 }
-                Text labelText = candidate->hasCustomLabel()
-                                     ? candidate->customLabel()
+                Text labelText = candidate.hasCustomLabel()
+                                     ? candidate.customLabel()
                                      : candidateList->label(i);
 
                 labelText = instance->outputFilter(inputContext, labelText);
                 labels.push_back(labelText.toString());
                 auto candidateText =
-                    instance->outputFilter(inputContext, candidate->text());
+                    instance->outputFilter(inputContext, candidate.text());
                 texts.push_back(candidateText.toString());
                 attrs.emplace_back("");
             }
@@ -429,8 +430,10 @@ void Kimpanel::msgV1Handler(dbus::Message &msg) {
         if (auto inputContext = lastInputContext_.get()) {
             if (auto candidateList =
                     inputContext->inputPanel().candidateList()) {
-                if (idx >= 0 && idx < candidateList->size()) {
-                    candidateList->candidate(idx)->select(inputContext);
+                auto candidate =
+                    nthCandidateIgnorePlaceholder(*candidateList, idx);
+                if (candidate) {
+                    candidate->select(inputContext);
                 }
             }
         }

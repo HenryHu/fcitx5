@@ -75,9 +75,9 @@ private:
     FCITX_OBJECT_VTABLE_SIGNAL(testSignal, "testSignal", "a(si)");
     FCITX_OBJECT_VTABLE_PROPERTY(testProperty, "testProperty", "i",
                                  []() { return 5; });
-    FCITX_OBJECT_VTABLE_WRITABLE_PROPERTY(testProperty2, "testProperty2", "i",
-                                          [this]() { return prop2; },
-                                          [this](int32_t v) { prop2 = v; });
+    FCITX_OBJECT_VTABLE_WRITABLE_PROPERTY(
+        testProperty2, "testProperty2", "i", [this]() { return prop2; },
+        [this](int32_t v) { prop2 = v; });
 };
 
 #define TEST_SERVICE "org.fcitx.Fcitx.TestDBus"
@@ -89,7 +89,7 @@ void client() {
     clientBus.attachEventLoop(&loop);
     std::unique_ptr<Slot> slot(clientBus.addMatch(
         MatchRule(TEST_SERVICE, "", TEST_INTERFACE, "testSignal"),
-        [&loop](dbus::Message message) {
+        [&loop](dbus::Message &message) {
             FCITX_INFO() << "testSignal";
             std::vector<DBusStruct<std::string, int>> data;
             message >> data;
@@ -178,7 +178,7 @@ void client() {
         }));
     std::unique_ptr<EventSourceTime> s6(loop.addTimeEvent(
         CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 500000, 0,
-        [&clientBus, &loop](EventSource *, uint64_t) {
+        [&clientBus](EventSource *, uint64_t) {
             FCITX_INFO() << "test3";
             auto msg = clientBus.createMethodCall(TEST_SERVICE, "/test",
                                                   TEST_INTERFACE, "test3");
@@ -195,7 +195,7 @@ void client() {
         }));
     std::unique_ptr<EventSourceTime> s7(
         loop.addTimeEvent(CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + 400000, 0,
-                          [&clientBus, &loop](EventSource *, uint64_t) {
+                          [&clientBus](EventSource *, uint64_t) {
                               FCITX_INFO() << "testProperty";
                               auto msg = clientBus.createMethodCall(
                                   TEST_SERVICE, "/test",

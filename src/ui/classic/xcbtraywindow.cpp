@@ -63,7 +63,7 @@ XCBTrayWindow::XCBTrayWindow(XCBUI *ui) : XCBWindow(ui, 48, 48) {
     menu_.addAction(&exitAction_);
 
     configureCurrentAction_.connect<SimpleAction::Activated>(
-        [this](InputContext *) {
+        [](InputContext *) {
             // TODO
         });
     configureAction_.connect<SimpleAction::Activated>(
@@ -452,5 +452,5 @@ void XCBTrayWindow::updateInputMethodMenu() {
         inputMethodMenu_.addAction(&inputMethodAction);
     }
 }
-}
+} // namespace classicui
 } // namespace fcitx

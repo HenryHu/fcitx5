@@ -57,11 +57,11 @@ XCBConnection::XCBConnection(XCBModule *xcb, const std::string &name)
     serverWindow_ = w;
     int fd = xcb_get_file_descriptor(conn_.get());
     auto &eventLoop = parent_->instance()->eventLoop();
-    ioEvent_ = eventLoop.addIOEvent(fd, IOEventFlag::In,
-                                    [this](EventSource *, int, IOEventFlags) {
-                                        onIOEvent();
-                                        return true;
-                                    });
+    ioEvent_ = eventLoop.addIOEvent(
+        fd, IOEventFlag::In, [this](EventSource *, int, IOEventFlags flags) {
+            onIOEvent(flags);
+            return true;
+        });
 
     eventHandlers_.emplace_back(parent_->instance()->watchEvent(
         EventType::InputMethodGroupChanged, EventWatcherPhase::Default,
@@ -97,7 +97,7 @@ XCBConnection::XCBConnection(XCBModule *xcb, const std::string &name)
     xcb_intern_atom_cookie_t *cookie = xcb_ewmh_init_atoms(conn_.get(), &ewmh_);
     if (cookie) {
         // They will wipe for us. and cookie will be free'd anyway.
-        if (!xcb_ewmh_init_atoms_replies(&ewmh_, cookie, NULL)) {
+        if (!xcb_ewmh_init_atoms_replies(&ewmh_, cookie, nullptr)) {
             memset(&ewmh_, 0, sizeof(ewmh_));
         }
     }
@@ -212,7 +212,7 @@ bool XCBConnection::grabXKeyboard() {
     auto cookie = xcb_grab_keyboard(conn_.get(), false, root_, XCB_CURRENT_TIME,
                                     XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     auto reply =
-        makeXCBReply(xcb_grab_keyboard_reply(conn_.get(), cookie, NULL));
+        makeXCBReply(xcb_grab_keyboard_reply(conn_.get(), cookie, nullptr));
 
     if (reply && reply->status == XCB_GRAB_STATUS_SUCCESS) {
         keyboardGrabbed_ = true;
@@ -233,19 +233,27 @@ void XCBConnection::ungrabXKeyboard() {
     xcb_flush(conn_.get());
 }
 
-void XCBConnection::onIOEvent() {
+auto nextXCBEvent(xcb_connection_t *conn, IOEventFlags flags) {
+    if (flags.test(IOEventFlag::In)) {
+        return makeXCBReply(xcb_poll_for_event(conn));
+    }
+    return makeXCBReply(xcb_poll_for_queued_event(conn));
+}
+
+void XCBConnection::onIOEvent(IOEventFlags flags) {
     if (int err = xcb_connection_has_error(conn_.get())) {
         FCITX_WARN() << "XCB connection \"" << name_ << "\" got error: " << err;
         return parent_->removeConnection(name_);
     }
 
-    while (auto event = makeXCBReply(xcb_poll_for_event(conn_.get()))) {
+    while (auto event = nextXCBEvent(conn_.get(), flags)) {
         for (auto &callback : filters_.view()) {
             if (callback(conn_.get(), event.get())) {
                 break;
             }
         }
     }
+    xcb_flush(conn_.get());
 }
 
 bool XCBConnection::filterEvent(xcb_connection_t *,
@@ -367,7 +375,8 @@ void XCBConnection::keyRelease(const xcb_key_release_event_t *event) {
         release = true;
     else {
         auto cookie = xcb_get_modifier_mapping(conn_.get());
-        auto reply = xcb_get_modifier_mapping_reply(conn_.get(), cookie, NULL);
+        auto reply =
+            xcb_get_modifier_mapping_reply(conn_.get(), cookie, nullptr);
         if (reply) {
             auto keycodes = xcb_get_modifier_mapping_keycodes(reply);
             for (int i = 0; i < reply->keycodes_per_modifier; i++) {

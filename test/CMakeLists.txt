@@ -20,7 +20,8 @@ set(FCITX_UTILS_TEST
     testhandlertable
     testsignals
     testinputbuffer
-    testlog)
+    testlog
+    testeventdispatcher)
 
 set(FCITX_UTILS_DBUS_TEST
     testdbusmessage
@@ -28,6 +29,7 @@ set(FCITX_UTILS_DBUS_TEST
     testservicewatcher)
 
 set(testdbus_LIBS Pthread::Pthread)
+set(testeventdispatcher_LIBS Pthread::Pthread)
 
 add_executable(DBusWrapper IMPORTED)
 set_target_properties(DBusWrapper PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/dbus_wrapper.sh")
@@ -79,5 +81,10 @@ add_dependencies(testaddon dummyaddon)
 add_executable(testxkbrules testxkbrules.cpp ../src/im/keyboard/xkbrules.cpp ../src/im/keyboard/xmlparser.cpp)
 target_compile_definitions(testxkbrules PRIVATE "-D_TEST_XKBRULES")
 target_include_directories(testxkbrules PRIVATE ../src)
-target_link_libraries(testxkbrules Fcitx5::Utils Expat::Expat)
+target_link_libraries(testxkbrules Fcitx5::Core Expat::Expat)
 add_test(NAME testxkbrules COMMAND testxkbrules)
+
+add_executable(testemoji testemoji.cpp)
+target_link_libraries(testemoji Fcitx5::Core Fcitx5::Module::Emoji)
+add_dependencies(testemoji emoji emoji.conf.in-fmt)
+add_test(NAME testemoji COMMAND testemoji)

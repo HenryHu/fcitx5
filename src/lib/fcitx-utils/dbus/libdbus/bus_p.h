@@ -27,6 +27,11 @@
 namespace fcitx {
 namespace dbus {
 
+FCITX_DECLARE_LOG_CATEGORY(libdbus_logcategory);
+
+#define FCITX_LIBDBUS_DEBUG()                                                  \
+    FCITX_LOGC(::fcitx::dbus::libdbus_logcategory, Debug)
+
 DBusHandlerResult DBusObjectPathVTableMessageCallback(DBusConnection *,
                                                       DBusMessage *message,
                                                       void *userdata);
@@ -70,28 +75,31 @@ public:
         : bus_(bus), conn_(nullptr),
           matchRuleSet_(
               [this](const MatchRule &rule) {
+                  if (!conn_) {
+                      return false;
+                  }
                   ScopedDBusError error;
-                  if (conn_) {
-                      if (needWatchService(rule)) {
-                          nameCache()->addWatch(rule.service());
-                      }
-                      dbus_bus_add_match(conn_, rule.rule().c_str(),
-                                         &error.error());
-                      bool isError = dbus_error_is_set(&error.error());
-                      if (!isError) {
-                          return true;
-                      }
+                  if (needWatchService(rule)) {
+                      nameCache()->addWatch(rule.service());
+                  }
+                  FCITX_LIBDBUS_DEBUG() << "Add dbus match: " << rule.rule();
+                  dbus_bus_add_match(conn_, rule.rule().c_str(),
+                                     &error.error());
+                  bool isError = dbus_error_is_set(&error.error());
+                  if (!isError) {
+                      return true;
                   }
                   return false;
               },
               [this](const MatchRule &rule) {
-                  if (conn_) {
-                      if (needWatchService(rule)) {
-                          nameCache()->removeWatch(rule.service());
-                      }
-                      dbus_bus_remove_match(conn_, rule.rule().c_str(),
-                                            nullptr);
+                  if (!conn_) {
+                      return;
                   }
+                  if (needWatchService(rule)) {
+                      nameCache()->removeWatch(rule.service());
+                  }
+                  FCITX_LIBDBUS_DEBUG() << "Remove dbus match: " << rule.rule();
+                  dbus_bus_remove_match(conn_, rule.rule().c_str(), nullptr);
               }),
           objectRegistration_(
               [this](const std::string &path) {
@@ -150,7 +158,7 @@ public:
 
     DBusObjectVTableSlot *findSlot(const std::string &path,
                                    const std::string interface);
-    bool objectVTableCallback(Message message);
+    bool objectVTableCallback(Message &message);
 
     Bus *bus_;
     std::string address_;
@@ -211,7 +219,9 @@ public:
 
     ~DBusAsyncCallSlot() {
         if (reply_) {
+            dbus_pending_call_set_notify(reply_, nullptr, nullptr, nullptr);
             dbus_pending_call_unref(reply_);
+            reply_ = nullptr;
         }
     }
 
