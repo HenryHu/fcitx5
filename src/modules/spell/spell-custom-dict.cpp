@@ -1,30 +1,18 @@
-//
-// Copyright (C) 2012~2012 by Yichao Yu
-// yyc1992@gmail.com
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2012-2012 Yichao Yu <yyc1992@gmail.com>
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "spell-custom-dict.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <stdexcept>
 #include "fcitx-utils/cutf8.h"
 #include "fcitx-utils/fs.h"
 #include "fcitx-utils/standardpath.h"
-#include <fcntl.h>
-#include <sys/stat.h>
 #if defined(__linux__) || defined(__GLIBC__)
 #include <endian.h>
 #else
@@ -90,10 +78,12 @@
 #define DICT_BIN_MAGIC "FSCD0000"
 
 bool checkLang(const std::string &full_lang, const std::string &lang) {
-    if (full_lang.empty() || lang.empty())
+    if (full_lang.empty() || lang.empty()) {
         return false;
-    if (full_lang.compare(0, lang.size(), lang) != 0)
+    }
+    if (full_lang.compare(0, lang.size(), lang) != 0) {
         return false;
+    }
     switch (full_lang[lang.size()]) {
     case '\0':
     case '_':
@@ -109,8 +99,9 @@ static inline uint32_t load_le32(const void *p) {
 }
 
 static bool isFirstCapital(const std::string &str) {
-    if (str.empty())
+    if (str.empty()) {
         return false;
+    }
     auto iter = str.begin();
     switch (*iter) {
     case_A_Z:
@@ -118,6 +109,7 @@ static bool isFirstCapital(const std::string &str) {
     default:
         return false;
     }
+    ++iter;
     for (; iter != str.end(); iter++) {
         switch (*iter) {
         case_A_Z:
@@ -130,8 +122,9 @@ static bool isFirstCapital(const std::string &str) {
 }
 
 static bool isAllCapital(const std::string &str) {
-    if (str.empty())
+    if (str.empty()) {
         return false;
+    }
     for (auto iter = str.begin(); iter != str.end(); iter++) {
         switch (*iter) {
         case_a_z:
@@ -150,8 +143,9 @@ enum {
 };
 
 static void toUpperString(std::string &str) {
-    if (str.empty())
+    if (str.empty()) {
         return;
+    }
     for (auto iter = str.begin(); iter != str.end(); iter++) {
         switch (*iter) {
         case_a_z:
@@ -186,18 +180,16 @@ public:
         case_A_Z:
             c2 += 'a' - 'A';
             break;
-        case_a_z:
-            break;
-        default:
-            break;
         }
         return c1 == c2;
     }
     int wordCheck(const std::string &str) override {
-        if (isFirstCapital(str))
+        if (isFirstCapital(str)) {
             return CUSTOM_FIRST_CAPITAL;
-        if (isAllCapital(str))
+        }
+        if (isAllCapital(str)) {
             return CUSTOM_ALL_CAPITAL;
+        }
         return CUSTOM_DEFAULT;
     }
 
@@ -240,7 +232,7 @@ load_le16(const void* p)
  **/
 std::string SpellCustomDict::locateDictFile(const std::string &lang) {
     auto templatePath = "spell/" + lang + "_dict.fscd";
-    auto &standardPath = StandardPath::global();
+    const auto &standardPath = StandardPath::global();
     std::string path;
     standardPath.scanDirectories(
         StandardPath::Type::PkgData,
@@ -279,7 +271,7 @@ void SpellCustomDict::loadDict(const std::string &lang) {
             sizeof(magic_buff)) {
             break;
         }
-        if (memcmp(DICT_BIN_MAGIC, magic_buff, sizeof(magic_buff))) {
+        if (memcmp(DICT_BIN_MAGIC, magic_buff, sizeof(magic_buff)) != 0) {
             break;
         }
         total_len = stat_buf.st_size - sizeof(magic_buff);
@@ -365,17 +357,20 @@ int SpellCustomDict::getDistance(const char *word, int utf8Len,
          * and dict and word are pointing to the next one.
          */
         if (!cur_word_c) {
-            return (
-                (replace * REPLACE_WEIGHT + insert * INSERT_WEIGHT +
-                 remove * REMOVE_WEIGHT) +
-                (cur_dict_c ? (fcitx_utf8_strlen(dict) + 1) * END_WEIGHT : 0));
+            return ((replace * REPLACE_WEIGHT + insert * INSERT_WEIGHT +
+                     remove * REMOVE_WEIGHT) +
+                    (cur_dict_c
+                         ? (static_cast<int>(fcitx_utf8_strlen(dict)) + 1) *
+                               END_WEIGHT
+                         : 0));
         }
         word = fcitx_utf8_get_char(word, &next_word_c);
 
         /* check remove error */
         if (!cur_dict_c) {
-            if (next_word_c)
+            if (next_word_c) {
                 return -1;
+            }
             remove++;
             if (diff <= maxdiff && remove <= maxremove) {
                 return (replace * REPLACE_WEIGHT + insert * INSERT_WEIGHT +
@@ -437,8 +432,9 @@ std::vector<std::string> SpellCustomDict::hint(const std::string &str,
             real_word += delta + 1;
         }
     }
-    if (!real_word[0])
+    if (!real_word[0]) {
         return {};
+    }
     auto word_type = wordCheck(real_word);
     int word_len = fcitx_utf8_strlen(real_word);
     auto compare = [](const std::pair<const char *, int> &lhs,
@@ -461,6 +457,7 @@ std::vector<std::string> SpellCustomDict::hint(const std::string &str,
     // Or sort heap?..
     std::sort(tops.begin(), tops.end(), compare);
 
+    result.reserve(tops.size());
     for (auto &top : tops) {
         result.emplace_back(top.first);
     }

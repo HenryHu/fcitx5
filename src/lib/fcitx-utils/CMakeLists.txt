@@ -29,6 +29,7 @@ set(FCITX_UTILS_SOURCES
     dbus/variant.cpp
     dbus/objectvtable.cpp
     stringutils.cpp
+    testing.cpp
     key.cpp
     cutf8.cpp
     color.cpp
@@ -85,6 +86,7 @@ set(FCITX_UTILS_HEADERS
     textformatflags.h
     inputbuffer.h
     log.h
+    testing.h
     ${CMAKE_CURRENT_BINARY_DIR}/fcitxutils_export.h
     )
 
@@ -97,17 +99,22 @@ set(FCITX_UTILS_DBUS_HEADERS
     dbus/matchrule.h
     )
 
+ecm_setup_version(PROJECT
+                  VARIABLE_PREFIX Fcitx5Utils
+                  PACKAGE_VERSION_FILE "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5UtilsConfigVersion.cmake"
+                  SOVERSION 2)
+
 add_library(Fcitx5Utils SHARED ${FCITX_UTILS_SOURCES})
 set_target_properties(Fcitx5Utils
-  PROPERTIES VERSION 1.0
-  SOVERSION 1
+  PROPERTIES VERSION ${Fcitx5Utils_VERSION}
+  SOVERSION ${Fcitx5Utils_SOVERSION}
   EXPORT_NAME Utils
   )
 target_include_directories(Fcitx5Utils PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_FULL_INCLUDEDIR}/Fcitx5/Utils>)
-target_link_libraries(Fcitx5Utils PRIVATE DL::DL LibIntl::LibIntl Pthread::Pthread)
+target_link_libraries(Fcitx5Utils PRIVATE DL::DL LibIntl::LibIntl Pthread::Pthread ${FMT_TARGET})
 
 if (NOT TARGET Systemd::Systemd)
 target_link_libraries(Fcitx5Utils PRIVATE PkgConfig::DBus PkgConfig::LibEvent)
@@ -124,10 +131,6 @@ install(FILES ${FCITX_UTILS_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Fc
 install(FILES ${FCITX_UTILS_DBUS_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Fcitx5/Utils/fcitx-utils/dbus")
 
 add_library(Fcitx5::Utils ALIAS Fcitx5Utils)
-
-ecm_setup_version(PROJECT
-                  PACKAGE_VERSION_FILE "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5UtilsConfigVersion.cmake"
-                  SOVERSION 1)
 
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/Fcitx5UtilsConfig.cmake.in"
                               "${CMAKE_CURRENT_BINARY_DIR}/Fcitx5UtilsConfig.cmake"

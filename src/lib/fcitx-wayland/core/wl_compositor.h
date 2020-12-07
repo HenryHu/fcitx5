@@ -1,10 +1,9 @@
 #ifndef WL_COMPOSITOR
 #define WL_COMPOSITOR
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlRegion;
 class WlSurface;
 class WlCompositor final {
@@ -28,11 +27,10 @@ private:
     static void destructor(wl_compositor *);
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_compositor, decltype(&destructor)> data_;
+    UniqueCPtr<wl_compositor, &destructor> data_;
 };
 static inline wl_compositor *rawPointer(WlCompositor *p) {
     return p ? static_cast<wl_compositor *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

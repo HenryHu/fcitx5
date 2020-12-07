@@ -1,27 +1,14 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "variant.h"
-#include "fcitx-utils/misc_p.h"
 #include <shared_mutex>
+#include "fcitx-utils/misc_p.h"
 
-namespace fcitx {
-namespace dbus {
+namespace fcitx::dbus {
 
 class VariantTypeRegistryPrivate {
 public:
@@ -54,14 +41,14 @@ void VariantTypeRegistry::registerTypeImpl(
     if (d->types_.count(signature)) {
         return;
     }
-    d->types_.emplace(signature, helper);
+    d->types_.emplace(signature, std::move(helper));
 }
 
 std::shared_ptr<VariantHelperBase>
 VariantTypeRegistry::lookupType(const std::string &signature) const {
     FCITX_D();
     std::shared_lock<std::shared_timed_mutex> lock(d->mutex_);
-    auto v = findValue(d->types_, signature);
+    const auto *v = findValue(d->types_, signature);
     return v ? *v : nullptr;
 }
 
@@ -74,5 +61,4 @@ void Variant::writeToMessage(dbus::Message &msg) const {
     helper_->serialize(msg, data_.get());
 }
 
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus

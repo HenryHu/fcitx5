@@ -1,27 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "userinterfacemanager.h"
+#include <set>
 #include "action.h"
 #include "inputcontext.h"
 #include "userinterface.h"
-#include <set>
 
 namespace fcitx {
 
@@ -38,11 +26,10 @@ public:
         if (freeList_.empty()) {
             ++maxId_;
             return maxId_;
-        } else {
-            auto value = *freeList_.begin();
-            freeList_.erase(freeList_.begin());
-            return value;
         }
+        auto value = *freeList_.begin();
+        freeList_.erase(freeList_.begin());
+        return value;
     }
     void returnId(int id) {
         assert(id <= maxId_ && freeList_.count(id) == 0);
@@ -111,7 +98,7 @@ void UserInterfaceManager::load(const std::string &uiName) {
 
     d->uis_.clear();
     if (names.count(uiName)) {
-        auto ui = d->addonManager_->addon(uiName, true);
+        auto *ui = d->addonManager_->addon(uiName, true);
         if (ui) {
             d->uis_.push_back(uiName);
         }
@@ -125,9 +112,8 @@ void UserInterfaceManager::load(const std::string &uiName) {
                       auto rp = d->addonManager_->addonInfo(rhs)->uiPriority();
                       if (lp == rp) {
                           return lhs > rhs;
-                      } else {
-                          return lp > rp;
                       }
+                      return lp > rp;
                   });
     }
     updateAvailability();
@@ -218,24 +204,26 @@ void UserInterfaceManager::expire(InputContext *inputContext) {
 
 void UserInterfaceManager::flush() {
     FCITX_D();
-    if (!d->ui_) {
-        return;
-    }
     for (auto &p : d->updateList_) {
         for (auto comp : p.second) {
-            d->ui_->update(comp, p.first);
+            if (p.first->capabilityFlags().test(CapabilityFlag::ClientSideUI)) {
+                p.first->updateClientSideUIImpl();
+            } else if (d->ui_) {
+                d->ui_->update(comp, p.first);
+            }
         }
     }
     d->updateIndex_.clear();
     d->updateList_.clear();
 }
+
 void UserInterfaceManager::updateAvailability() {
     FCITX_D();
-    auto oldUI = d->ui_;
+    auto *oldUI = d->ui_;
     UserInterface *newUI = nullptr;
     std::string newUIName;
     for (auto &name : d->uis_) {
-        auto ui =
+        auto *ui =
             static_cast<UserInterface *>(d->addonManager_->addon(name, true));
         if (ui && ui->available()) {
             newUI = static_cast<UserInterface *>(ui);

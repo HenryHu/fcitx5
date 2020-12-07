@@ -1,22 +1,11 @@
-//
-// Copyright (C) 2012~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2012-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "unicode.h"
+#include <fmt/format.h>
 #include "fcitx-utils/i18n.h"
 #include "fcitx-utils/inputbuffer.h"
 #include "fcitx-utils/utf8.h"
@@ -47,7 +36,7 @@ public:
 
 class UnicodeCandidateWord : public CandidateWord {
 public:
-    UnicodeCandidateWord(Unicode *q, int c) : CandidateWord(), q_(q) {
+    UnicodeCandidateWord(Unicode *q, int c) : q_(q) {
         Text text;
         text.append(utf8::UCS4ToUTF8(c));
         text.append(" ");
@@ -57,7 +46,7 @@ public:
 
     void select(InputContext *inputContext) const override {
         auto commit = text().stringAt(0);
-        auto state = inputContext->propertyFor(&q_->factory());
+        auto *state = inputContext->propertyFor(&q_->factory());
         state->reset(inputContext);
         inputContext->commitString(commit);
     }
@@ -97,7 +86,7 @@ Unicode::Unicode(Instance *instance)
 
     auto reset = [this](Event &event) {
         auto &icEvent = static_cast<InputContextEvent &>(event);
-        auto state = icEvent.inputContext()->propertyFor(&factory_);
+        auto *state = icEvent.inputContext()->propertyFor(&factory_);
         if (state->enabled_) {
             state->reset(icEvent.inputContext());
         }
@@ -113,8 +102,8 @@ Unicode::Unicode(Instance *instance)
         EventType::InputContextKeyEvent, EventWatcherPhase::PreInputMethod,
         [this](Event &event) {
             auto &keyEvent = static_cast<KeyEvent &>(event);
-            auto inputContext = keyEvent.inputContext();
-            auto state = inputContext->propertyFor(&factory_);
+            auto *inputContext = keyEvent.inputContext();
+            auto *state = inputContext->propertyFor(&factory_);
             if (!state->enabled_) {
                 return;
             }
@@ -138,7 +127,7 @@ Unicode::Unicode(Instance *instance)
 
                 if (keyEvent.key().checkKeyList(
                         instance_->globalConfig().defaultPrevPage())) {
-                    auto pageable = candidateList->toPageable();
+                    auto *pageable = candidateList->toPageable();
                     if (!pageable->hasPrev()) {
                         if (pageable->usedNextBefore()) {
                             event.accept();
@@ -161,6 +150,24 @@ Unicode::Unicode(Instance *instance)
                         UserInterfaceComponent::InputPanel);
                     return;
                 }
+
+                if (keyEvent.key().checkKeyList(
+                        instance_->globalConfig().defaultPrevCandidate())) {
+                    keyEvent.filterAndAccept();
+                    candidateList->toCursorMovable()->prevCandidate();
+                    inputContext->updateUserInterface(
+                        UserInterfaceComponent::InputPanel);
+                    return;
+                }
+
+                if (keyEvent.key().checkKeyList(
+                        instance_->globalConfig().defaultNextCandidate())) {
+                    keyEvent.filterAndAccept();
+                    candidateList->toCursorMovable()->nextCandidate();
+                    inputContext->updateUserInterface(
+                        UserInterfaceComponent::InputPanel);
+                    return;
+                }
             }
 
             // and by pass all modifier
@@ -171,11 +178,17 @@ Unicode::Unicode(Instance *instance)
                 keyEvent.accept();
                 state->reset(inputContext);
                 return;
-            } else if (keyEvent.key().check(FcitxKey_Return)) {
+            }
+            if (keyEvent.key().check(FcitxKey_Return)) {
                 keyEvent.accept();
-                state->reset(inputContext);
+                if (candidateList->size() > 0 &&
+                    candidateList->cursorIndex() >= 0) {
+                    candidateList->candidate(candidateList->cursorIndex())
+                        .select(inputContext);
+                }
                 return;
-            } else if (keyEvent.key().check(FcitxKey_BackSpace)) {
+            }
+            if (keyEvent.key().check(FcitxKey_BackSpace)) {
                 if (state->buffer_.empty()) {
                     state->reset(inputContext);
                 } else {
@@ -214,12 +227,12 @@ Unicode::Unicode(Instance *instance)
 Unicode::~Unicode() {}
 
 void Unicode::trigger(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
+    auto *state = inputContext->propertyFor(&factory_);
     state->enabled_ = true;
-    updateUI(inputContext);
+    updateUI(inputContext, true);
 }
-void Unicode::updateUI(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
+void Unicode::updateUI(InputContext *inputContext, bool trigger) {
+    auto *state = inputContext->propertyFor(&factory_);
     inputContext->inputPanel().reset();
     if (!state->buffer_.empty()) {
         auto result = data_.find(state->buffer_.userInput());
@@ -230,17 +243,85 @@ void Unicode::updateUI(InputContext *inputContext) {
                 candidateList->append<UnicodeCandidateWord>(this, c);
             }
         }
+        if (candidateList->size()) {
+            candidateList->setGlobalCursorIndex(0);
+        }
         candidateList->setSelectionKey(selectionKeys_);
+        candidateList->setLayoutHint(CandidateLayoutHint::Vertical);
+        inputContext->inputPanel().setCandidateList(std::move(candidateList));
+    } else if (trigger) {
+        auto candidateList = std::make_unique<CommonCandidateList>();
+
+        std::vector<std::string> selectedTexts;
+        if (inputContext->capabilityFlags().test(
+                CapabilityFlag::SurroundingText)) {
+            if (auto selected = inputContext->surroundingText().selectedText();
+                !selected.empty()) {
+                selectedTexts.push_back(std::move(selected));
+            }
+        }
+        if (clipboard()) {
+            if (selectedTexts.empty()) {
+                auto primary =
+                    clipboard()->call<IClipboard::primary>(inputContext);
+                if (std::find(selectedTexts.begin(), selectedTexts.end(),
+                              primary) == selectedTexts.end()) {
+                    selectedTexts.push_back(std::move(primary));
+                }
+            }
+            auto clip = clipboard()->call<IClipboard::clipboard>(inputContext);
+            if (std::find(selectedTexts.begin(), selectedTexts.end(), clip) ==
+                selectedTexts.end()) {
+                selectedTexts.push_back(std::move(clip));
+            }
+        }
+        std::unordered_set<uint32_t> seenChar;
+        for (const auto &str : selectedTexts) {
+            if (!utf8::validate(str)) {
+                continue;
+            }
+            // Hard limit to prevent do too much lookup.
+            constexpr int limit = 20;
+            int counter = 0;
+            for (auto c : utf8::MakeUTF8CharRange(str)) {
+                if (!seenChar.insert(c).second) {
+                    continue;
+                }
+                auto name = data_.name(c);
+                std::string display;
+                if (!name.empty()) {
+                    display = fmt::format("{0} U+{1:04x} {2}",
+                                          utf8::UCS4ToUTF8(c), c, name);
+                } else {
+                    display =
+                        fmt::format("{0} U+{1:04x}", utf8::UCS4ToUTF8(c), c);
+                }
+                candidateList->append<DisplayOnlyCandidateWord>(Text(display));
+                if (counter >= limit) {
+                    break;
+                }
+                counter += 1;
+            }
+        }
+        candidateList->setSelectionKey(KeyList(10));
+        candidateList->setPageSize(instance_->globalConfig().defaultPageSize());
+        if (candidateList->size()) {
+            candidateList->setGlobalCursorIndex(0);
+        }
+
         candidateList->setLayoutHint(CandidateLayoutHint::Vertical);
         inputContext->inputPanel().setCandidateList(std::move(candidateList));
     }
     Text preedit;
     preedit.append(state->buffer_.userInput());
-    if (state->buffer_.size()) {
+    if (!state->buffer_.empty()) {
         preedit.setCursor(state->buffer_.cursorByChar());
     }
 
     Text auxUp(_("Unicode: "));
+    if (trigger) {
+        auxUp.append(_("(Type to search unicode by code or description)"));
+    }
     // inputContext->inputPanel().setClientPreedit(preedit);
     inputContext->inputPanel().setAuxUp(auxUp);
     inputContext->inputPanel().setPreedit(preedit);

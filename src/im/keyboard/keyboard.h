@@ -1,26 +1,17 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_IM_KEYBOARD_KEYBOARD_H_
 #define _FCITX_IM_KEYBOARD_KEYBOARD_H_
 
+#include <xkbcommon/xkbcommon-compose.h>
+#include <xkbcommon/xkbcommon.h>
 #include "fcitx-config/configuration.h"
 #include "fcitx-config/iniparser.h"
+#include "fcitx-utils/event.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx-utils/inputbuffer.h"
 #include "fcitx/addonfactory.h"
@@ -30,17 +21,16 @@
 #include "fcitx/instance.h"
 #include "isocodes.h"
 #include "keyboard_public.h"
+#include "quickphrase_public.h"
 #include "xkbrules.h"
-#include <xkbcommon/xkbcommon-compose.h>
-#include <xkbcommon/xkbcommon.h>
 
 namespace fcitx {
 
 class Instance;
 
-FCITX_CONFIG_ENUM(ChooseModifier, None, Alt, Control, Super);
-FCITX_CONFIG_ENUM_I18N_ANNOTATION(ChooseModifier, N_("None"), N_("Alt"),
-                                  N_("Control"), N_("Super"));
+enum class ChooseModifier { NoModifier, Alt, Control, Super };
+FCITX_CONFIG_ENUM_NAME_WITH_I18N(ChooseModifier, N_("None"), N_("Alt"),
+                                 N_("Control"), N_("Super"));
 
 FCITX_CONFIGURATION(
     KeyboardEngineConfig,
@@ -60,6 +50,8 @@ FCITX_CONFIGURATION(
         KeyListConstrain(KeyConstrainFlag::AllowModifierLess)};
     Option<bool> enableEmoji{this, "EnableEmoji", _("Enable emoji in hint"),
                              true};
+    Option<bool> enableQuickphraseEmoji{this, "EnableQuickPhraseEmoji",
+                                        _("Enable emoji in quickphrase"), true};
     OptionWithAnnotation<ChooseModifier, ChooseModifierI18NAnnotation>
         chooseModifier{this, "Choose Modifier", _("Choose key modifier"),
                        ChooseModifier::Alt};
@@ -104,6 +96,7 @@ public:
     FCITX_ADDON_DEPENDENCY_LOADER(spell, instance_->addonManager());
     FCITX_ADDON_DEPENDENCY_LOADER(notifications, instance_->addonManager());
     FCITX_ADDON_DEPENDENCY_LOADER(emoji, instance_->addonManager());
+    FCITX_ADDON_DEPENDENCY_LOADER(quickphrase, instance_->addonManager());
 
     void updateCandidate(const InputMethodEntry &entry,
                          InputContext *inputContext);
@@ -124,9 +117,11 @@ private:
     FCITX_ADDON_EXPORT_FUNCTION(KeyboardEngine, foreachLayout);
     FCITX_ADDON_EXPORT_FUNCTION(KeyboardEngine, foreachVariant);
 
+    bool supportHint(const std::string &language);
     std::string preeditString(InputContext *inputContext);
     void commitBuffer(InputContext *inputContext);
     void updateUI(InputContext *inputContext);
+    void initQuickPhrase();
 
     Instance *instance_;
     AddonInstance *spell_ = nullptr;
@@ -136,6 +131,9 @@ private:
     XkbRules xkbRules_;
     std::string ruleName_;
     KeyList selectionKeys_;
+    std::unique_ptr<EventSource> deferEvent_;
+    std::unique_ptr<HandlerTableEntry<QuickPhraseProviderCallback>>
+        quickphraseHandler_;
 
     FactoryFor<KeyboardEngineState> factory_{
         [](InputContext &) { return new KeyboardEngineState; }};

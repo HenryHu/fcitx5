@@ -1,36 +1,24 @@
-//
-// Copyright (C) 2012~2012 by Yichao Yu
-// yyc1992@gmail.com
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2012-2012 Yichao Yu <yyc1992@gmail.com>
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
 
-#include "spell-enchant.h"
 #include <dlfcn.h>
+#include <stdexcept>
 #include <enchant.h>
+#include "spell-enchant.h"
 
 namespace fcitx {
 
 SpellEnchant::SpellEnchant(Spell *spell)
-    : SpellBackend(spell), broker_(enchant_broker_init(), &enchant_broker_free),
+    : SpellBackend(spell), broker_(enchant_broker_init()),
       dict_(nullptr, [this](EnchantDict *dict) {
           enchant_broker_free_dict(broker_.get(), dict);
       }) {
@@ -51,8 +39,9 @@ std::vector<std::string> SpellEnchant::hint(const std::string &language,
     size_t number;
     char **suggestions =
         enchant_dict_suggest(dict_.get(), word.c_str(), word.size(), &number);
-    if (!suggestions)
+    if (!suggestions) {
         return {};
+    }
 
     std::vector<std::string> result;
     number = number > limit ? limit : number;
@@ -70,7 +59,7 @@ bool SpellEnchant::loadDict(const std::string &language) {
         return true;
     }
 
-    auto dict = enchant_broker_request_dict(broker_.get(), language.c_str());
+    auto *dict = enchant_broker_request_dict(broker_.get(), language.c_str());
     if (dict) {
         language_ = language;
         dict_.reset(dict);

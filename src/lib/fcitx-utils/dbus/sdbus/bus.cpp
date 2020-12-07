@@ -1,31 +1,17 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
+#include <stdexcept>
 #include "../../log.h"
 #include "bus_p.h"
 #include "message_p.h"
 #include "objectvtable_p_sdbus.h"
-#include <poll.h>
 
-namespace fcitx {
-
-namespace dbus {
+namespace fcitx::dbus {
 
 Slot::~Slot() {}
 
@@ -52,7 +38,11 @@ Bus::Bus(BusType type) : d_ptr(std::make_unique<BusPrivate>()) {
         func = sd_bus_open;
         break;
     }
-    func(&d_ptr->bus_);
+    if (func(&d_ptr->bus_) < 0) {
+        sd_bus_unref(d_ptr->bus_);
+        d_ptr->bus_ = nullptr;
+        throw std::runtime_error("Failed to create dbus connection");
+    }
 }
 
 Bus::Bus(const std::string &address) : d_ptr(std::make_unique<BusPrivate>()) {
@@ -76,6 +66,7 @@ Bus::Bus(const std::string &address) : d_ptr(std::make_unique<BusPrivate>()) {
 fail:
     sd_bus_unref(d_ptr->bus_);
     d_ptr->bus_ = nullptr;
+    throw std::runtime_error("Failed to create dbus connection");
 }
 
 Bus::~Bus() {
@@ -96,7 +87,7 @@ Message Bus::createMethodCall(const char *destination, const char *path,
                               const char *interface, const char *member) {
     FCITX_D();
     Message msg;
-    auto msgD = msg.d_func();
+    auto *msgD = msg.d_func();
     if (sd_bus_message_new_method_call(d->bus_, &msgD->msg_, destination, path,
                                        interface, member) < 0) {
         msgD->type_ = MessageType::Invalid;
@@ -110,7 +101,7 @@ Message Bus::createSignal(const char *path, const char *interface,
                           const char *member) {
     FCITX_D();
     Message msg;
-    auto msgD = msg.d_func();
+    auto *msgD = msg.d_func();
     int r = sd_bus_message_new_signal(d->bus_, &msgD->msg_, path, interface,
                                       member);
     if (r < 0) {
@@ -136,7 +127,7 @@ void Bus::detachEventLoop() {
 }
 
 int SDMessageCallback(sd_bus_message *m, void *userdata, sd_bus_error *) {
-    auto slot = static_cast<SDSlot *>(userdata);
+    auto *slot = static_cast<SDSlot *>(userdata);
     if (!slot) {
         return 0;
     }
@@ -146,15 +137,16 @@ int SDMessageCallback(sd_bus_message *m, void *userdata, sd_bus_error *) {
         return result ? 1 : 0;
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return 1;
 }
 
-std::unique_ptr<Slot> Bus::addMatch(MatchRule rule, MessageCallback callback) {
+std::unique_ptr<Slot> Bus::addMatch(const MatchRule &rule,
+                                    MessageCallback callback) {
     FCITX_D();
-    auto slot = std::make_unique<SDSlot>(callback);
+    auto slot = std::make_unique<SDSlot>(std::move(callback));
     sd_bus_slot *sdSlot;
     int r = sd_bus_add_match(d->bus_, &sdSlot, rule.rule().c_str(),
                              SDMessageCallback, slot.get());
@@ -169,7 +161,7 @@ std::unique_ptr<Slot> Bus::addMatch(MatchRule rule, MessageCallback callback) {
 
 std::unique_ptr<Slot> Bus::addFilter(MessageCallback callback) {
     FCITX_D();
-    auto slot = std::make_unique<SDSlot>(callback);
+    auto slot = std::make_unique<SDSlot>(std::move(callback));
     sd_bus_slot *sdSlot;
     int r = sd_bus_add_filter(d->bus_, &sdSlot, SDMessageCallback, slot.get());
     if (r < 0) {
@@ -184,7 +176,7 @@ std::unique_ptr<Slot> Bus::addFilter(MessageCallback callback) {
 std::unique_ptr<Slot> Bus::addObject(const std::string &path,
                                      MessageCallback callback) {
     FCITX_D();
-    auto slot = std::make_unique<SDSlot>(callback);
+    auto slot = std::make_unique<SDSlot>(std::move(callback));
     sd_bus_slot *sdSlot;
     int r = sd_bus_add_object(d->bus_, &sdSlot, path.c_str(), SDMessageCallback,
                               slot.get());
@@ -214,6 +206,8 @@ bool Bus::addObjectVTable(const std::string &path, const std::string &interface,
     vtable.setSlot(slot.release());
     return true;
 }
+
+const char *Bus::impl() { return "sdbus"; }
 
 void *Bus::nativeHandle() const {
     FCITX_D();
@@ -258,7 +252,7 @@ std::unique_ptr<Slot> Bus::serviceOwnerAsync(const std::string &name,
     auto msg = createMethodCall("org.freedesktop.DBus", "/org/freedesktop/DBus",
                                 "org.freedesktop.DBus", "GetNameOwner");
     msg << name;
-    return msg.callAsync(usec, callback);
+    return msg.callAsync(usec, std::move(callback));
 }
 
 std::string Bus::uniqueName() {
@@ -283,5 +277,4 @@ void Bus::flush() {
     FCITX_D();
     sd_bus_flush(d->bus_);
 }
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus

@@ -1,10 +1,9 @@
 #ifndef WL_POINTER
 #define WL_POINTER
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlSurface;
 class WlPointer final {
 public:
@@ -47,11 +46,10 @@ private:
     fcitx::Signal<void(uint32_t, int32_t)> axisDiscreteSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_pointer, decltype(&destructor)> data_;
+    UniqueCPtr<wl_pointer, &destructor> data_;
 };
 static inline wl_pointer *rawPointer(WlPointer *p) {
     return p ? static_cast<wl_pointer *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

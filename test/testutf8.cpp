@@ -1,8 +1,15 @@
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
+
+#include <cstdio>
+#include <cstring>
 #include "fcitx-utils/cutf8.h"
 #include "fcitx-utils/log.h"
 #include "fcitx-utils/utf8.h"
-#include <cstdio>
-#include <cstring>
 
 #define BUF_SIZE 9
 
@@ -44,10 +51,23 @@ int main() {
     FCITX_ASSERT(fcitx::utf8::validate(str));
     FCITX_ASSERT(fcitx::utf8::lengthValidated(str) == 7);
     uint32_t expect[] = {0x4f60, 0x597d, 0x5417, 0x61, 0x62, 0x63, 0x0a};
+    uint32_t expectLength[] = {3, 3, 3, 1, 1, 1, 1};
+    std::string expectCharStr[] = {
+        "\xe4\xbd\xa0", "\xe5\xa5\xbd", "\xe5\x90\x97", "\x61",
+        "\x62",         "\x63",         "\x0a"};
     int counter = 0;
     for (auto c : fcitx::utf8::MakeUTF8CharRange(str)) {
         FCITX_ASSERT(expect[counter] == c);
         counter++;
+    }
+
+    auto range = fcitx::utf8::MakeUTF8CharRange(str);
+    int i = 0;
+    for (auto iter = std::begin(range), end = std::end(range); iter != end;
+         ++iter, ++i) {
+        FCITX_ASSERT(iter.charLength() == iter.view().length());
+        FCITX_ASSERT(iter.charLength() == expectLength[i]);
+        FCITX_ASSERT(iter.view() == expectCharStr[i]);
     }
 
     FCITX_ASSERT(fcitx::utf8::getLastChar(str) == 0xa);
@@ -55,7 +75,7 @@ int main() {
     std::string invalidStr = "\xe4\xff";
     FCITX_ASSERT(fcitx::utf8::getLastChar(invalidStr) ==
                  fcitx::utf8::INVALID_CHAR);
-    std::string empty = "";
+    std::string empty;
     FCITX_ASSERT(fcitx::utf8::getLastChar(empty) ==
                  fcitx::utf8::NOT_ENOUGH_SPACE);
     FCITX_ASSERT(fcitx::utf8::length(empty) == 0);

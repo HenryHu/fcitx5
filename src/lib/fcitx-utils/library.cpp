@@ -1,31 +1,21 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "library.h"
-#include "stringutils.h"
-#include <cstring>
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstring>
+#include "config.h"
+#include "misc.h"
+#include "stringutils.h"
 
 namespace fcitx {
 
@@ -74,8 +64,17 @@ bool Library::load(Flags<fcitx::LibraryLoadHint> hint) {
         flag |= RTLD_GLOBAL;
     }
 
-    // allow dlopen self
-    d->handle_ = dlopen(!d->path_.empty() ? d->path_.c_str() : nullptr, flag);
+#ifdef HAS_DLMOPEN
+    if (hint & LibraryLoadHint::NewNameSpace) {
+        // allow dlopen self
+        d->handle_ = dlmopen(
+            LM_ID_NEWLM, !d->path_.empty() ? d->path_.c_str() : nullptr, flag);
+    } else
+#endif
+    {
+        d->handle_ =
+            dlopen(!d->path_.empty() ? d->path_.c_str() : nullptr, flag);
+    }
     if (!d->handle_) {
         d->error_ = dlerror();
         return false;
@@ -96,7 +95,7 @@ bool Library::unload() {
 
 void *Library::resolve(const char *name) {
     FCITX_D();
-    auto result = dlsym(d->handle_, name);
+    auto *result = dlsym(d->handle_, name);
     if (!result) {
         d->error_ = dlerror();
     }
@@ -104,7 +103,7 @@ void *Library::resolve(const char *name) {
 }
 
 bool Library::findData(const char *slug, const char *magic, size_t lenOfMagic,
-                       std::function<void(const char *data)> parser) {
+                       const std::function<void(const char *data)> &parser) {
     FCITX_D();
     if (d->handle_) {
         void *data = dlsym(d->handle_, slug);
@@ -127,7 +126,7 @@ bool Library::findData(const char *slug, const char *magic, size_t lenOfMagic,
         return false;
     }
 
-    void *needfree = nullptr;
+    UniqueCPtr<void> needfree;
     bool result = false;
     do {
         struct stat statbuf;
@@ -141,7 +140,7 @@ bool Library::findData(const char *slug, const char *magic, size_t lenOfMagic,
             mmap(0, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
         if (!data) {
             data = malloc(statbuf.st_size);
-            needfree = data;
+            needfree.reset(data);
             if (!data) {
                 break;
             }
@@ -164,7 +163,6 @@ bool Library::findData(const char *slug, const char *magic, size_t lenOfMagic,
     } while (0);
 
     close(fd);
-    free(needfree);
 
     return result;
 }
@@ -172,5 +170,13 @@ bool Library::findData(const char *slug, const char *magic, size_t lenOfMagic,
 std::string Library::error() {
     FCITX_D();
     return d->error_;
+}
+
+bool Library::isNewNamespaceSupported() {
+#ifdef HAS_DLMOPEN
+    return true;
+#else
+    return false;
+#endif
 }
 } // namespace fcitx

@@ -1,30 +1,20 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "inputcontext.h"
+#include <cassert>
+#include <chrono>
+#include <exception>
 #include "fcitx-utils/event.h"
 #include "focusgroup.h"
 #include "inputcontext_p.h"
 #include "inputcontextmanager.h"
 #include "instance.h"
-#include <cassert>
-#include <exception>
+#include "misc_p.h"
 
 namespace fcitx {
 
@@ -74,9 +64,14 @@ const Rect &InputContext::cursorRect() const {
     return d->cursorRect_;
 }
 
+double InputContext::scaleFactor() const {
+    FCITX_D();
+    return d->scale_;
+}
+
 InputContextProperty *InputContext::property(const std::string &name) {
     FCITX_D();
-    auto factory = d->manager_.factoryForName(name);
+    auto *factory = d->manager_.factoryForName(name);
     if (!factory) {
         return nullptr;
     }
@@ -91,37 +86,82 @@ InputContext::property(const InputContextPropertyFactory *factory) {
 
 void InputContext::updateProperty(const std::string &name) {
     FCITX_D();
-    auto factory = d->manager_.factoryForName(name);
+    auto *factory = d->manager_.factoryForName(name);
     if (!factory) {
         return;
     }
-    auto property = d->manager_.property(*this, factory);
+    updateProperty(factory);
+}
+
+void InputContext::updateProperty(const InputContextPropertyFactory *factory) {
+    FCITX_D();
+    auto *property = d->manager_.property(*this, factory);
     if (!property->needCopy()) {
         return;
     }
     d->manager_.propagateProperty(*this, factory);
 }
 
+CapabilityFlags calculateFlags(CapabilityFlags flag, bool isPreeditEnabled) {
+    if (!isPreeditEnabled) {
+        flag = flag.unset(CapabilityFlag::Preedit)
+                   .unset(CapabilityFlag::FormattedPreedit);
+    }
+    return flag;
+}
+
 void InputContext::setCapabilityFlags(CapabilityFlags flags) {
     FCITX_D();
-    if (d->capabilityFlags_ != flags) {
-        d->capabilityFlags_ = flags;
-
-        d->emplaceEvent<CapabilityChangedEvent>(this);
+    if (d->capabilityFlags_ == flags) {
+        return;
+    }
+    const auto oldFlags = capabilityFlags();
+    auto newFlags = calculateFlags(flags, d->isPreeditEnabled_);
+    if (oldFlags != newFlags) {
+        d->emplaceEvent<CapabilityAboutToChangeEvent>(this, oldFlags, flags);
+    }
+    d->capabilityFlags_ = flags;
+    if (oldFlags != newFlags) {
+        d->emplaceEvent<CapabilityChangedEvent>(this, oldFlags, flags);
     }
 }
 
 CapabilityFlags InputContext::capabilityFlags() const {
     FCITX_D();
-    return d->capabilityFlags_;
+    return calculateFlags(d->capabilityFlags_, d->isPreeditEnabled_);
 }
 
-void InputContext::setCursorRect(Rect rect) {
+void InputContext::setEnablePreedit(bool enable) {
     FCITX_D();
-    if (d->cursorRect_ != rect) {
-        d->cursorRect_ = rect;
-        d->emplaceEvent<CursorRectChangedEvent>(this);
+    if (enable == d->isPreeditEnabled_) {
+        return;
     }
+    const auto oldFlags = capabilityFlags();
+    auto newFlags = calculateFlags(d->capabilityFlags_, enable);
+    if (oldFlags != newFlags) {
+        d->emplaceEvent<CapabilityAboutToChangeEvent>(this, oldFlags, newFlags);
+    }
+    d->isPreeditEnabled_ = enable;
+    if (oldFlags != newFlags) {
+        d->emplaceEvent<CapabilityChangedEvent>(this, oldFlags, newFlags);
+    }
+}
+
+bool InputContext::isPreeditEnabled() const {
+    FCITX_D();
+    return d->isPreeditEnabled_;
+}
+
+void InputContext::setCursorRect(Rect rect) { setCursorRect(rect, 1.0); }
+
+void InputContext::setCursorRect(Rect rect, double scale) {
+    FCITX_D();
+    if (d->cursorRect_ == rect && d->scale_ == scale) {
+        return;
+    }
+    d->cursorRect_ = rect;
+    d->scale_ = scale;
+    d->emplaceEvent<CursorRectChangedEvent>(this);
 }
 
 void InputContext::setFocusGroup(FocusGroup *group) {
@@ -183,7 +223,18 @@ void InputContext::setHasFocus(bool hasFocus) {
 
 bool InputContext::keyEvent(KeyEvent &event) {
     FCITX_D();
-    return d->postEvent(event);
+    decltype(std::chrono::steady_clock::now()) start;
+    // Don't query time if we don't want log.
+    if (::keyTrace().checkLogLevel(LogLevel::Debug)) {
+        start = std::chrono::steady_clock::now();
+    }
+    auto result = d->postEvent(event);
+    FCITX_KEYTRACE() << "KeyEvent handling time: "
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - start)
+                            .count()
+                     << "ms";
+    return result;
 }
 
 void InputContext::reset(ResetReason reason) {
@@ -206,16 +257,31 @@ void InputContext::updateSurroundingText() {
     d->emplaceEvent<SurroundingTextUpdatedEvent>(this);
 }
 
+void InputContext::setBlockEventToClient(bool block) {
+    FCITX_D();
+    if (d->blockEventToClient_ == block) {
+        throw std::invalid_argument(
+            "setBlockEventToClient has invalid argument. Probably a bug in the "
+            "implementation.");
+    }
+    d->blockEventToClient_ = block;
+    if (!block) {
+        d->deliverBlockedEvents();
+    }
+}
+
+bool InputContext::hasPendingEvents() const {
+    FCITX_D();
+    return !d->blockedEvents_.empty();
+}
+
 void InputContext::commitString(const std::string &text) {
     FCITX_D();
-    CommitStringEvent event(text, this);
-    if (!d->postEvent(event)) {
-        if (auto instance = d->manager_.instance()) {
-            auto newString = instance->commitFilter(this, event.text());
-            commitStringImpl(newString);
-        } else {
-            commitStringImpl(event.text());
-        }
+    if (auto *instance = d->manager_.instance()) {
+        auto newString = instance->commitFilter(this, text);
+        d->pushEvent<CommitStringEvent>(std::move(newString), this);
+    } else {
+        d->pushEvent<CommitStringEvent>(text, this);
     }
 }
 
@@ -225,23 +291,23 @@ void InputContext::deleteSurroundingText(int offset, unsigned int size) {
 
 void InputContext::forwardKey(const Key &rawKey, bool isRelease, int time) {
     FCITX_D();
-    ForwardKeyEvent event(this, rawKey, isRelease, time);
-    if (!d->postEvent(event)) {
-        forwardKeyImpl(event);
-    }
+    d->pushEvent<ForwardKeyEvent>(this, rawKey, isRelease, time);
 }
 
 void InputContext::updatePreedit() {
     FCITX_D();
-    if (!d->emplaceEvent<UpdatePreeditEvent>(this)) {
-        updatePreeditImpl();
+    if (!capabilityFlags().test(CapabilityFlag::Preedit)) {
+        return;
     }
+    d->pushEvent<UpdatePreeditEvent>(this);
 }
 
 void InputContext::updateUserInterface(UserInterfaceComponent component,
                                        bool immediate) {
     FCITX_D();
-    d->emplaceEvent<InputContextUpdateUIEvent>(component, this, immediate);
+    if (!d->capabilityFlags_.test(CapabilityFlag::ClientSideUI)) {
+        d->emplaceEvent<InputContextUpdateUIEvent>(component, this, immediate);
+    }
 }
 
 InputPanel &InputContext::inputPanel() {
@@ -253,4 +319,18 @@ StatusArea &InputContext::statusArea() {
     FCITX_D();
     return d->statusArea_;
 }
+
+void InputContext::updateClientSideUIImpl() {}
+
+InputContextEventBlocker::InputContextEventBlocker(InputContext *inputContext)
+    : inputContext_(inputContext->watch()) {
+    inputContext->setBlockEventToClient(true);
+}
+
+InputContextEventBlocker::~InputContextEventBlocker() {
+    if (auto *ic = inputContext_.get()) {
+        ic->setBlockEventToClient(false);
+    }
+}
+
 } // namespace fcitx

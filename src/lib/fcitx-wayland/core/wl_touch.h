@@ -1,10 +1,9 @@
 #ifndef WL_TOUCH
 #define WL_TOUCH
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlSurface;
 class WlTouch final {
 public:
@@ -43,11 +42,10 @@ private:
     fcitx::Signal<void(int32_t, wl_fixed_t)> orientationSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_touch, decltype(&destructor)> data_;
+    UniqueCPtr<wl_touch, &destructor> data_;
 };
 static inline wl_touch *rawPointer(WlTouch *p) {
     return p ? static_cast<wl_touch *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

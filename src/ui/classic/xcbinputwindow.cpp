@@ -1,90 +1,23 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "xcbinputwindow.h"
-#include "fcitx-utils/rect.h"
 #include <pango/pangocairo.h>
 #include <xcb/xcb_aux.h>
+#include <xcb/xcb_icccm.h>
+#include "fcitx-utils/rect.h"
 
-namespace fcitx {
-namespace classicui {
+namespace fcitx::classicui {
 
 XCBInputWindow::XCBInputWindow(XCBUI *ui)
-    : XCBWindow(ui), InputWindow(ui->parent()) {
-    cairo_hint_style_t hint = CAIRO_HINT_STYLE_DEFAULT;
-    cairo_antialias_t aa = CAIRO_ANTIALIAS_DEFAULT;
-    cairo_subpixel_order_t subpixel = CAIRO_SUBPIXEL_ORDER_DEFAULT;
-    switch (ui->fontOption().hint) {
-    case XCBHintStyle::None:
-        hint = CAIRO_HINT_STYLE_NONE;
-        break;
-    case XCBHintStyle::Slight:
-        hint = CAIRO_HINT_STYLE_SLIGHT;
-        break;
-    case XCBHintStyle::Medium:
-        hint = CAIRO_HINT_STYLE_MEDIUM;
-        break;
-    case XCBHintStyle::Full:
-        hint = CAIRO_HINT_STYLE_FULL;
-        break;
-    default:
-        hint = CAIRO_HINT_STYLE_DEFAULT;
-        break;
-    }
-    switch (ui->fontOption().rgba) {
-    case XCBRGBA::None:
-        subpixel = CAIRO_SUBPIXEL_ORDER_DEFAULT;
-        break;
-    case XCBRGBA::RGB:
-        subpixel = CAIRO_SUBPIXEL_ORDER_RGB;
-        break;
-    case XCBRGBA::BGR:
-        subpixel = CAIRO_SUBPIXEL_ORDER_BGR;
-        break;
-    case XCBRGBA::VRGB:
-        subpixel = CAIRO_SUBPIXEL_ORDER_VRGB;
-        break;
-    case XCBRGBA::VBGR:
-        subpixel = CAIRO_SUBPIXEL_ORDER_VBGR;
-        break;
-    default:
-        subpixel = CAIRO_SUBPIXEL_ORDER_DEFAULT;
-        break;
-    }
-
-    if (ui->fontOption().antialias) {
-        if (subpixel != CAIRO_SUBPIXEL_ORDER_DEFAULT) {
-            aa = CAIRO_ANTIALIAS_SUBPIXEL;
-        } else {
-            aa = CAIRO_ANTIALIAS_GRAY;
-        }
-    } else {
-        aa = CAIRO_ANTIALIAS_NONE;
-    }
-
-    auto options = cairo_font_options_create();
-    cairo_font_options_set_hint_style(options, hint);
-    cairo_font_options_set_subpixel_order(options, subpixel);
-    cairo_font_options_set_antialias(options, aa);
-    cairo_font_options_set_hint_metrics(options, CAIRO_HINT_METRICS_ON);
-    pango_cairo_context_set_font_options(context_.get(), options);
-    cairo_font_options_destroy(options);
+    : XCBWindow(ui), InputWindow(ui->parent()),
+      atomBlur_(ui_->parent()->xcb()->call<IXCBModule::atom>(
+          ui_->name(), "_KDE_NET_WM_BLUR_BEHIND_REGION", false)) {
+    ui->fontOption().setupPangoContext(context_.get());
 }
 
 void XCBInputWindow::postCreateWindow() {
@@ -93,6 +26,16 @@ void XCBInputWindow::postCreateWindow() {
         xcb_ewmh_set_wm_window_type(
             ui_->ewmh(), wid_, 1, &ui_->ewmh()->_NET_WM_WINDOW_TYPE_POPUP_MENU);
     }
+
+    if (ui_->ewmh()->_NET_WM_PID) {
+        xcb_ewmh_set_wm_pid(ui_->ewmh(), wid_, getpid());
+    }
+
+    const char name[] = "Fcitx5 Input Window";
+    xcb_icccm_set_wm_name(ui_->connection(), wid_, XCB_ATOM_STRING, 8,
+                          sizeof(name) - 1, name);
+    const char klass[] = "fcitx\0fcitx";
+    xcb_icccm_set_wm_class(ui_->connection(), wid_, sizeof(klass) - 1, klass);
     addEventMaskToWindow(
         ui_->connection(), wid_,
         XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
@@ -112,7 +55,7 @@ void XCBInputWindow::updatePosition(InputContext *inputContext) {
 
     const Rect *closestScreen = nullptr;
     int shortestDistance = INT_MAX;
-    for (auto &rect : ui_->screenRects()) {
+    for (const auto &rect : ui_->screenRects()) {
         int thisDistance = rect.first.distance(x, y);
         if (thisDistance < shortestDistance) {
             shortestDistance = thisDistance;
@@ -135,13 +78,14 @@ void XCBInputWindow::updatePosition(InputContext *inputContext) {
             newY = y + (h ? h : (10 * ((dpi_ < 0 ? 96.0 : dpi_) / 96.0)));
         }
 
-        if ((newX + static_cast<int>(width())) > closestScreen->right())
+        if ((newX + static_cast<int>(width())) > closestScreen->right()) {
             newX = closestScreen->right() - width();
+        }
 
         if ((newY + static_cast<int>(height())) > closestScreen->bottom()) {
-            if (newY > closestScreen->bottom())
+            if (newY > closestScreen->bottom()) {
                 newY = closestScreen->bottom() - height() - 40;
-            else { /* better position the window */
+            } else { /* better position the window */
                 newY = newY - height() - ((h == 0) ? 40 : h);
             }
         }
@@ -174,6 +118,7 @@ void XCBInputWindow::update(InputContext *inputContext) {
         updateDPI(inputContext);
     }
     InputWindow::update(inputContext);
+    assert(!visible() || inputContext != nullptr);
     if (!visible()) {
         if (oldVisible) {
             xcb_unmap_window(ui_->connection(), wid_);
@@ -186,6 +131,23 @@ void XCBInputWindow::update(InputContext *inputContext) {
 
     if (width != this->width() || height != this->height()) {
         resize(width, height);
+        if (atomBlur_) {
+            Rect rect(0, 0, width, height);
+            shrink(rect, *ui_->parent()->theme().inputPanel->blurMargin);
+            if (!*ui_->parent()->theme().inputPanel->enableBlur ||
+                rect.isEmpty()) {
+                xcb_delete_property(ui_->connection(), wid_, atomBlur_);
+            } else {
+                std::vector<uint32_t> data;
+                data.push_back(rect.left());
+                data.push_back(rect.top());
+                data.push_back(rect.width());
+                data.push_back(rect.height());
+                xcb_change_property(ui_->connection(), XCB_PROP_MODE_REPLACE,
+                                    wid_, atomBlur_, XCB_ATOM_CARDINAL, 32,
+                                    data.size(), data.data());
+            }
+        }
     }
 
     cairo_t *c = cairo_create(prerender());
@@ -204,7 +166,7 @@ bool XCBInputWindow::filterEvent(xcb_generic_event_t *event) {
     switch (response_type) {
 
     case XCB_EXPOSE: {
-        auto expose = reinterpret_cast<xcb_expose_event_t *>(event);
+        auto *expose = reinterpret_cast<xcb_expose_event_t *>(event);
         if (expose->window == wid_) {
             repaint();
             return true;
@@ -212,21 +174,23 @@ bool XCBInputWindow::filterEvent(xcb_generic_event_t *event) {
         break;
     }
     case XCB_BUTTON_PRESS: {
-        auto buttonPress = reinterpret_cast<xcb_button_press_event_t *>(event);
+        auto *buttonPress = reinterpret_cast<xcb_button_press_event_t *>(event);
         if (buttonPress->event != wid_) {
             break;
         }
         if (buttonPress->detail == XCB_BUTTON_INDEX_1) {
             click(buttonPress->event_x, buttonPress->event_y);
+        } else if (buttonPress->detail == XCB_BUTTON_INDEX_4) {
+            wheel(/*up=*/true);
+        } else if (buttonPress->detail == XCB_BUTTON_INDEX_5) {
+            wheel(/*up=*/false);
         }
         return true;
     }
     case XCB_MOTION_NOTIFY: {
-        auto motion = reinterpret_cast<xcb_motion_notify_event_t *>(event);
+        auto *motion = reinterpret_cast<xcb_motion_notify_event_t *>(event);
         if (motion->event == wid_) {
-            auto oldHighlight = highlight();
-            hover(motion->event_x, motion->event_y);
-            if (oldHighlight != highlight()) {
+            if (hover(motion->event_x, motion->event_y)) {
                 repaint();
             }
             return true;
@@ -234,11 +198,9 @@ bool XCBInputWindow::filterEvent(xcb_generic_event_t *event) {
         break;
     }
     case XCB_LEAVE_NOTIFY: {
-        auto leave = reinterpret_cast<xcb_leave_notify_event_t *>(event);
+        auto *leave = reinterpret_cast<xcb_leave_notify_event_t *>(event);
         if (leave->event == wid_) {
-            auto oldHighlight = highlight();
-            hoverIndex_ = -1;
-            if (oldHighlight != highlight()) {
+            if (hover(-1, -1)) {
                 repaint();
             }
             return true;
@@ -253,7 +215,7 @@ void XCBInputWindow::repaint() {
     if (!visible()) {
         return;
     }
-    if (auto surface = prerender()) {
+    if (auto *surface = prerender()) {
         cairo_t *c = cairo_create(surface);
         paint(c, width(), height());
         cairo_destroy(c);
@@ -261,5 +223,4 @@ void XCBInputWindow::repaint() {
     }
 }
 
-} // namespace classicui
-} // namespace fcitx
+} // namespace fcitx::classicui

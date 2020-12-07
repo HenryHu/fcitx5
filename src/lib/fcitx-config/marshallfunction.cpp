@@ -1,28 +1,16 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "marshallfunction.h"
-#include "configuration.h"
 #include "fcitx-utils/stringutils.h"
+#include "configuration.h"
 
 namespace fcitx {
-void marshallOption(RawConfig &config, const bool value) {
+void marshallOption(RawConfig &config, bool value) {
     config = value ? "True" : "False";
 }
 
@@ -34,7 +22,7 @@ bool unmarshallOption(bool &value, const RawConfig &config, bool) {
 
     return false;
 }
-void marshallOption(RawConfig &config, const int value) {
+void marshallOption(RawConfig &config, int value) {
     config = std::to_string(value);
 }
 
@@ -81,7 +69,7 @@ bool unmarshallOption(Color &value, const RawConfig &config, bool) {
 
 void marshallOption(RawConfig &config, const I18NString &value) {
     config = value.defaultString();
-    for (auto &p : value.localizedStrings()) {
+    for (const auto &p : value.localizedStrings()) {
         (*config.parent())[stringutils::concat(config.name(), "[", p.first,
                                                "]")] = p.second;
     }

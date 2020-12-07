@@ -1,24 +1,13 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_INPUTCONTEXT_P_H_
 #define _FCITX_INPUTCONTEXT_P_H_
 
+#include <unordered_map>
 #include <fcitx-utils/intrusivelist.h>
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
@@ -26,7 +15,6 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/statusarea.h>
-#include <unordered_map>
 #include <uuid.h>
 
 namespace fcitx {
@@ -36,7 +24,8 @@ public:
     InputContextPrivate(InputContext *q, InputContextManager &manager,
                         const std::string &program)
         : QPtrHolder(q), manager_(manager), group_(nullptr), inputPanel_(q),
-          statusArea_(q), hasFocus_(false), program_(program) {
+          statusArea_(q), program_(program),
+          isPreeditEnabled_(manager.isPreeditEnabledByDefault()) {
         uuid_generate(uuid_.data());
     }
 
@@ -45,21 +34,36 @@ public:
         if (destroyed_) {
             return true;
         }
-        if (auto instance = manager_.instance()) {
+        if (auto *instance = manager_.instance()) {
             return instance->postEvent(event);
         }
         return false;
     }
 
     template <typename E, typename... Args>
-    bool emplaceEvent(Args &&... args) {
+    bool emplaceEvent(Args &&...args) {
         if (destroyed_) {
             return true;
         }
-        if (auto instance = manager_.instance()) {
+        if (auto *instance = manager_.instance()) {
             return instance->postEvent(E(std::forward<Args>(args)...));
         }
         return false;
+    }
+
+    template <typename E, typename... Args>
+    void pushEvent(Args &&...args) {
+        if (destroyed_) {
+            return;
+        }
+
+        if (blockEventToClient_) {
+            blockedEvents_.push_back(
+                std::make_unique<E>(std::forward<Args>(args)...));
+        } else {
+            E event(std::forward<Args>(args)...);
+            deliverEvent(event, nullptr);
+        }
     }
 
     void registerProperty(int slot, InputContextProperty *property) {
@@ -77,6 +81,60 @@ public:
         properties_.pop_back();
     }
 
+    void deliverEvent(InputContextEvent &icEvent, std::string *commitBuffer) {
+        FCITX_Q();
+        if (destroyed_) {
+            return;
+        }
+        if (commitBuffer && !commitBuffer->empty() &&
+            icEvent.type() == EventType::InputContextForwardKey) {
+            q->commitStringImpl(*commitBuffer);
+            commitBuffer->clear();
+        }
+
+        switch (icEvent.type()) {
+        case EventType::InputContextCommitString: {
+            auto &event = static_cast<CommitStringEvent &>(icEvent);
+            if (!postEvent(event)) {
+                if (commitBuffer) {
+                    *commitBuffer += event.text();
+                } else {
+                    q->commitStringImpl(event.text());
+                }
+            }
+            break;
+        }
+        case EventType::InputContextForwardKey: {
+            auto &event = static_cast<ForwardKeyEvent &>(icEvent);
+            if (!postEvent(event)) {
+                q->forwardKeyImpl(event);
+            }
+            break;
+        }
+        case EventType::InputContextUpdatePreedit: {
+            auto &event = static_cast<UpdatePreeditEvent &>(icEvent);
+            if (!postEvent(event)) {
+                q->updatePreeditImpl();
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    void deliverBlockedEvents() {
+        FCITX_Q();
+        std::string commitBuffer;
+        for (const auto &event : blockedEvents_) {
+            deliverEvent(*event, &commitBuffer);
+        }
+        if (!commitBuffer.empty()) {
+            q->commitStringImpl(commitBuffer);
+        }
+        blockedEvents_.clear();
+    }
+
     InputContextProperty *property(int slot) { return properties_[slot].get(); }
 
     InputContextManager &manager_;
@@ -86,14 +144,19 @@ public:
     bool hasFocus_ = false;
     std::string program_;
     CapabilityFlags capabilityFlags_;
+    bool isPreeditEnabled_ = true;
     SurroundingText surroundingText_;
     Rect cursorRect_;
+    double scale_ = 1.0;
 
     IntrusiveListNode listNode_;
     IntrusiveListNode focusedListNode_;
     ICUUID uuid_;
     std::vector<std::unique_ptr<InputContextProperty>> properties_;
     bool destroyed_ = false;
+
+    std::list<std::unique_ptr<InputContextEvent>> blockedEvents_;
+    bool blockEventToClient_ = false;
 };
 } // namespace fcitx
 

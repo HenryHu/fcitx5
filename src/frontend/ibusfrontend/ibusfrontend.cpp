@@ -1,24 +1,19 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "ibusfrontend.h"
-#include "dbus_public.h"
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fstream>
+#include <mutex>
+#include <fmt/format.h>
+#include <uuid/uuid.h>
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/dbus/message.h"
 #include "fcitx-utils/dbus/objectvtable.h"
@@ -32,12 +27,7 @@
 #include "fcitx/inputcontext.h"
 #include "fcitx/instance.h"
 #include "fcitx/misc_p.h"
-#include <fcntl.h>
-#include <fstream>
-#include <mutex>
-#include <signal.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include "dbus_public.h"
 
 #define IBUS_INPUTMETHOD_DBUS_INTERFACE "org.freedesktop.IBus"
 #define IBUS_INPUTCONTEXT_DBUS_INTERFACE "org.freedesktop.IBus.InputContext"
@@ -77,29 +67,34 @@ std::string getLocalMachineId(void) {
     return content;
 }
 
-std::string getSocketPath(void) {
-    auto path = getenv("IBUS_ADDRESS_FILE");
+std::string getSocketPath(bool isWayland) {
+    auto *path = getenv("IBUS_ADDRESS_FILE");
     if (path) {
         return path;
     }
     std::string hostname = "unix";
     std::string displaynumber = "0";
-    if (auto display = getenv("DISPLAY")) {
-        auto p = display;
-        for (; *p != ':' && *p != '\0'; p++)
+    if (isWayland) {
+        displaynumber = "wayland-0";
+        if (auto *display = getenv("WAYLAND_DISPLAY")) {
+            displaynumber = display;
+        }
+    } else if (auto *display = getenv("DISPLAY")) {
+        auto *p = display;
+        for (; *p != ':' && *p != '\0'; p++) {
             ;
+        }
 
         char *displaynumberStart = nullptr;
         if (*p == ':') {
             hostname = std::string(display, p);
             displaynumberStart = p + 1;
 
-            for (; *p != '.' && *p != '\0'; p++)
+            for (; *p != '.' && *p != '\0'; p++) {
                 ;
-
-            if (*p == '.') {
-                displaynumber = std::string(displaynumberStart, p);
             }
+
+            displaynumber = std::string(displaynumberStart, p);
         } else {
             hostname = display;
         }
@@ -114,34 +109,34 @@ std::string getSocketPath(void) {
                                         displaynumber));
 }
 
-std::string getFullSocketPath(void) {
+std::string getFullSocketPath(bool isWayland) {
     return stringutils::joinPath(
         StandardPath::global().userDirectory(StandardPath::Type::Config),
-        getSocketPath());
+        getSocketPath(isWayland));
 }
 
 std::pair<std::string, pid_t> getAddress(const std::string &socketPath) {
     pid_t pid = -1;
 
     /* get address from env variable */
-    auto address = getenv("IBUS_ADDRESS");
+    auto *address = getenv("IBUS_ADDRESS");
     if (address) {
         return {address, -1};
     }
 
     /* read address from ~/.config/ibus/bus/soketfile */
-    std::unique_ptr<std::FILE, decltype(&std::fclose)> file(
-        fopen(socketPath.c_str(), "rb"), &std::fclose);
+    UniqueFilePtr file(fopen(socketPath.c_str(), "rb"));
     if (!file) {
         return {};
     }
     RawConfig config;
     readFromIni(config, file.get());
-    if (auto value = config.valueByPath("IBUS_ADDRESS")) {
-        if (auto pidValue = config.valueByPath("IBUS_DAEMON_PID")) {
+    if (const auto *value = config.valueByPath("IBUS_ADDRESS")) {
+        if (const auto *pidValue = config.valueByPath("IBUS_DAEMON_PID")) {
             try {
                 pid = std::stoi(*pidValue);
-                if (kill(pid, 0) == 0 && pid != getpid()) {
+                // Check if PID exists.
+                if (pid == getpid() || kill(pid, 0) == 0) {
                     return {*value, pid};
                 }
             } catch (...) {
@@ -187,7 +182,9 @@ public:
                  const std::string &interface)
         : module_(module), instance_(module->instance()), bus_(bus),
           watcher_(std::make_unique<dbus::ServiceWatcher>(*bus_)) {
-        bus_->addObjectVTable("/org/freedesktop/IBus", interface, *this);
+        if (watcher_) {
+            bus_->addObjectVTable("/org/freedesktop/IBus", interface, *this);
+        }
     }
 
     dbus::ObjectPath createInputContext(const std::string &args);
@@ -262,7 +259,11 @@ public:
                            }
                        })),
           name_(sender) {
-
+        processKeyEventMethod.setClosureFunction(
+            [this](dbus::Message message, const dbus::ObjectMethod &method) {
+                InputContextEventBlocker blocker(this);
+                return method(std::move(message));
+            });
         im->bus()->addObjectVTable(path().path(),
                                    IBUS_INPUTCONTEXT_DBUS_INTERFACE, *this);
         im->bus()->addObjectVTable(path().path(), IBUS_SERVICE_DBUS_INTERFACE,
@@ -276,7 +277,7 @@ public:
 
     const std::string &name() const { return name_; }
 
-    const dbus::ObjectPath path() const { return path_; }
+    dbus::ObjectPath path() const { return path_; }
 
     void commitStringImpl(const std::string &str) override {
         IBusText text = makeSimpleIBusText(str);
@@ -289,6 +290,7 @@ public:
         // variant : -> s, a{sv} sv
         // v -> s a? av
         dbus::Variant v;
+        const auto preeditString = preedit.toString();
         IBusText text = makeSimpleIBusText(preedit.toString());
 
         IBusAttrList attrList = makeIBusAttrList();
@@ -313,12 +315,13 @@ public:
         std::get<3>(text).setData(std::move(attrList));
 
         v.setData(std::move(text));
-        uint32_t cursor = preedit.cursor() >= 0 ? preedit.cursor() : 0;
+        uint32_t cursor = preedit.cursor() >= 0
+                              ? utf8::length(preeditString, 0, preedit.cursor())
+                              : 0;
         if (clientCommitPreedit_) {
-            updatePreeditTextWithModeTo(name_, v, cursor, offset ? true : false,
-                                        0);
+            updatePreeditTextWithModeTo(name_, v, cursor, offset != 0, 0);
         } else {
-            updatePreeditTextTo(name_, v, cursor, offset ? true : false);
+            updatePreeditTextTo(name_, v, cursor, offset != 0);
         }
     }
 
@@ -332,8 +335,13 @@ public:
             state |= releaseMask;
         }
 
+        auto code = key.rawKey().code();
+        if (code) {
+            code -= 8;
+        }
+
         forwardKeyEventTo(name_, static_cast<uint32_t>(key.rawKey().sym()),
-                          static_cast<uint32_t>(key.rawKey().code()), state);
+                          static_cast<uint32_t>(code), state);
         bus()->flush();
     }
 #define CHECK_SENDER_OR_RETURN                                                 \
@@ -385,6 +393,7 @@ public:
                          .unset(CapabilityFlag::FormattedPreedit)
                          .unset(CapabilityFlag::SurroundingText);
         if (cap & IBUS_CAP_PREEDIT_TEXT) {
+            flags |= CapabilityFlag::Preedit;
             flags |= CapabilityFlag::FormattedPreedit;
         }
         if (cap & IBUS_CAP_SURROUNDING_TEXT) {
@@ -408,7 +417,7 @@ public:
         CHECK_SENDER_OR_RETURN false;
         KeyEvent event(this,
                        Key(static_cast<KeySym>(keyval),
-                           KeyStates(state & (~releaseMask)), keycode),
+                           KeyStates(state & (~releaseMask)), keycode + 8),
                        state & releaseMask, 0);
         // Force focus if there's keyevent.
         if (!hasFocus()) {
@@ -420,16 +429,16 @@ public:
 
     void enable() {}
     void disable() {}
-    bool isEnabled() { return true; }
+    static bool isEnabled() { return true; }
     void propertyActivate(const std::string &, int32_t) {}
     void setEngine(const std::string &) {}
-    dbus::Variant getEngine() { return dbus::Variant(0); }
+    static dbus::Variant getEngine() { return dbus::Variant(0); }
     void setSurroundingText(const dbus::Variant &text, uint32_t cursor,
                             uint32_t anchor) {
         if (text.signature() != "(sa{sv}sv)") {
             return;
         }
-        auto &s = text.dataAs<IBusText>();
+        const auto &s = text.dataAs<IBusText>();
         surroundingText().setText(std::get<2>(s), cursor, anchor);
         updateSurroundingText();
     }
@@ -485,7 +494,7 @@ private:
     FCITX_OBJECT_VTABLE_SIGNAL(updateProperty, "UpdateProperty", "v");
 
     // We dont tell others anything.
-    std::tuple<uint32_t, uint32_t> contentType() { return {0, 0}; }
+    static std::tuple<uint32_t, uint32_t> contentType() { return {0, 0}; }
     void setContentType(uint32_t hints, uint32_t purpose) {
 
         static const CapabilityFlags purpose_related_capability = {
@@ -616,8 +625,8 @@ void IBusService::destroyDBus() {
 dbus::ObjectPath
 IBusFrontend::createInputContext(const std::string & /* unused */) {
     auto sender = currentMessage()->sender();
-    auto ic = new IBusInputContext(icIdx++, instance_->inputContextManager(),
-                                   this, sender, "");
+    auto *ic = new IBusInputContext(icIdx++, instance_->inputContextManager(),
+                                    this, sender, "");
     ic->setFocusGroup(instance_->defaultFocusGroup());
     return ic->path();
 }
@@ -626,7 +635,8 @@ IBusFrontend::createInputContext(const std::string & /* unused */) {
 #define IBUS_PORTAL_DBUS_INTERFACE "org.freedesktop.IBus.Portal"
 
 IBusFrontendModule::IBusFrontendModule(Instance *instance)
-    : instance_(instance), socketPath_(getFullSocketPath()) {
+    : instance_(instance), socketPaths_{getFullSocketPath(true),
+                                        getFullSocketPath(false)} {
     dbus::VariantTypeRegistry::defaultRegistry().registerType<IBusText>();
     dbus::VariantTypeRegistry::defaultRegistry().registerType<IBusAttribute>();
     dbus::VariantTypeRegistry::defaultRegistry().registerType<IBusAttrList>();
@@ -638,10 +648,19 @@ IBusFrontendModule::~IBusFrontendModule() {
         portalBus_->releaseName(IBUS_PORTAL_DBUS_SERVICE);
     }
 
-    if (!addressWrote_.empty()) {
-        auto address = getAddress(socketPath_);
+    if (addressWrote_.empty()) {
+        return;
+    }
+    for (const auto &path : socketPaths_) {
+        auto address = getAddress(path);
         if (address.first == addressWrote_ && address.second == pidWrote_) {
-            unlink(socketPath_.c_str());
+            // Writeback an empty invalid address file.
+            RawConfig config;
+            config.setValueByPath("IBUS_ADDRESS", "");
+            config.setValueByPath("IBUS_DAEMON_PID", "");
+            StandardPath::global().safeSave(
+                StandardPath::Type::Config, path,
+                [&config](int fd) { return writeAsIni(config, fd); });
         }
     }
 }
@@ -651,9 +670,15 @@ dbus::Bus *IBusFrontendModule::bus() {
 }
 
 void IBusFrontendModule::replaceIBus() {
-    auto address = getAddress(socketPath_);
+    std::pair<std::string, pid_t> address;
+    for (const auto &path : socketPaths_) {
+        address = getAddress(path);
+        if (!address.first.empty() && address.second != getpid()) {
+            break;
+        }
+    }
     oldAddress_ = address.first;
-    if (!address.first.empty()) {
+    if (!oldAddress_.empty()) {
         auto pid = runIBusExit();
         if (pid > 0) {
             FCITX_DEBUG() << "Running ibus exit.";
@@ -665,7 +690,7 @@ void IBusFrontendModule::replaceIBus() {
                     while ((ret = waitpid(pid, &stat, WNOHANG)) <= 0) {
                         if (ret == 0) {
                             FCITX_DEBUG()
-                                << "ibus exit have ended yet, kill it.";
+                                << "ibus exit haven't ended yet, kill it.";
                             kill(pid, SIGKILL);
                             waitpid(pid, &stat, WNOHANG);
                             break;
@@ -717,19 +742,28 @@ void IBusFrontendModule::becomeIBus() {
     // Otherwise it won't retry connection since we always use session bus
     // instead of start our own one.
     // https://dbus.freedesktop.org/doc/dbus-specification.html#addresses
-    // DBus address may use ; to add multiple fallback addresses.
-    // Adding a semicolon at the end of the address won't change the behavior.
-    if (oldAddress_.find(';') == std::string::npos) {
-        address += ";";
+    // We just try to append a custom argument. And dbus will simply ignore
+    // unrecognized such field.
+    while (stringutils::endsWith(address, ";")) {
+        address.pop_back();
     }
+    address.append(",fcitx_random_string=");
+    ICUUID uuid;
+    uuid_generate(uuid.data());
+    for (auto v : uuid) {
+        address.append(fmt::format("{:02x}", static_cast<int>(v)));
+    }
+    FCITX_DEBUG() << "IBus address is written with: " << address;
     config.setValueByPath("IBUS_ADDRESS", address);
     config.setValueByPath("IBUS_DAEMON_PID", std::to_string(getpid()));
 
     FCITX_DEBUG() << "Writing ibus daemon info.";
-    if (!StandardPath::global().safeSave(
-            StandardPath::Type::Config, getSocketPath(),
-            [&config](int fd) { return writeAsIni(config, fd); })) {
-        return;
+    for (const auto &path : socketPaths_) {
+        if (!StandardPath::global().safeSave(
+                StandardPath::Type::Config, path,
+                [&config](int fd) { return writeAsIni(config, fd); })) {
+            return;
+        }
     }
 
     addressWrote_ = address;
@@ -748,7 +782,7 @@ void IBusFrontendModule::becomeIBus() {
             IBUS_PORTAL_DBUS_SERVICE,
             Flags<dbus::RequestNameFlag>{dbus::RequestNameFlag::ReplaceExisting,
                                          dbus::RequestNameFlag::Queue})) {
-        FCITX_LOG(Warn) << "Can not get portal ibus name right now.";
+        FCITX_WARN() << "Can not get portal ibus name right now.";
     }
 }
 

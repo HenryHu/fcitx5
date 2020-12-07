@@ -1,30 +1,21 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_MISC_H_
 #define _FCITX_UTILS_MISC_H_
 
+#include <unistd.h>
 #include <cstdint>
-#include <fcitx-utils/macros.h>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+#include <fcitx-utils/macros.h>
 
 namespace fcitx {
 
@@ -114,6 +105,33 @@ struct EnumHash {
 
 FCITXUTILS_EXPORT void startProcess(const std::vector<std::string> &args,
                                     const std::string &workingDirectory = {});
+
+FCITXUTILS_EXPORT std::string getProcessName(pid_t pid);
+
+template <auto FreeFunction>
+struct FunctionDeleter {
+    template <typename T>
+    void operator()(T *p) const {
+        if (p) {
+            FreeFunction(const_cast<std::remove_const_t<T> *>(p));
+        }
+    }
+};
+template <typename T, auto FreeFunction = std::free>
+using UniqueCPtr = std::unique_ptr<T, FunctionDeleter<FreeFunction>>;
+static_assert(sizeof(char *) == sizeof(UniqueCPtr<char>),
+              ""); // ensure no overhead
+
+using UniqueFilePtr = std::unique_ptr<FILE, FunctionDeleter<std::fclose>>;
+
+template <typename T>
+inline auto makeUniqueCPtr(T *ptr) {
+    return UniqueCPtr<T>(ptr);
+}
+
+FCITXUTILS_EXPORT ssize_t getline(UniqueCPtr<char> &lineptr, size_t *n,
+                                  std::FILE *stream);
+
 } // namespace fcitx
 
 #endif // _FCITX_UTILS_MISC_H_

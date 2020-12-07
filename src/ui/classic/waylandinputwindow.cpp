@@ -1,33 +1,24 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "waylandinputwindow.h"
+#include <linux/input-event-codes.h>
+#include "waylandim_public.h"
 #include "waylandui.h"
 #include "waylandwindow.h"
 #include "zwp_input_panel_v1.h"
-#include <linux/input-event-codes.h>
+#include "zwp_input_popup_surface_v2.h"
 
-fcitx::classicui::WaylandInputWindow::WaylandInputWindow(WaylandUI *ui)
-    : fcitx::classicui::InputWindow(ui->parent()), ui_(ui),
-      window_(ui->newWindow()) {
+namespace fcitx::classicui {
+
+WaylandInputWindow::WaylandInputWindow(WaylandUI *ui)
+    : InputWindow(ui->parent()), ui_(ui), window_(ui->newWindow()) {
     window_->createWindow();
     window_->repaint().connect([this]() {
-        if (auto ic = repaintIC_.get()) {
+        if (auto *ic = repaintIC_.get()) {
             if (ic->hasFocus()) {
                 update(ic);
             }
@@ -40,16 +31,39 @@ fcitx::classicui::WaylandInputWindow::WaylandInputWindow(WaylandUI *ui)
         }
     });
     window_->hover().connect([this](int x, int y) {
-        auto oldHighlight = highlight();
-        hover(x, y);
-        if (oldHighlight != highlight()) {
+        if (hover(x, y)) {
+            repaint();
+        }
+    });
+    window_->leave().connect([this]() {
+        if (hover(-1, -1)) {
+            repaint();
+        }
+    });
+    window_->axis().connect([this](int, int, uint32_t axis, wl_fixed_t value) {
+        if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL) {
+            return;
+        }
+        scroll_ += value;
+        bool triggered = false;
+        while (scroll_ >= 2560) {
+            scroll_ -= 2560;
+            wheel(/*up=*/false);
+            triggered = true;
+        }
+        while (scroll_ <= -2560) {
+            scroll_ += 2560;
+            wheel(/*up=*/true);
+            triggered = true;
+        }
+        if (triggered) {
             repaint();
         }
     });
     initPanel();
 }
 
-void fcitx::classicui::WaylandInputWindow::initPanel() {
+void WaylandInputWindow::initPanel() {
     if (panelSurface_) {
         return;
     }
@@ -62,12 +76,19 @@ void fcitx::classicui::WaylandInputWindow::initPanel() {
     panelSurface_->setOverlayPanel();
 }
 
-void fcitx::classicui::WaylandInputWindow::resetPanel() {
-    panelSurface_.reset();
-}
+void WaylandInputWindow::resetPanel() { panelSurface_.reset(); }
 
-void fcitx::classicui::WaylandInputWindow::update(fcitx::InputContext *ic) {
+void WaylandInputWindow::update(fcitx::InputContext *ic) {
     InputWindow::update(ic);
+    if (ic->frontend() == std::string_view("wayland_v2")) {
+        if (ic != v2IC_.get()) {
+            v2IC_ = ic->watch();
+            auto *im = ui_->parent()
+                           ->waylandim()
+                           ->call<IWaylandIMModule::getInputMethodV2>(ic);
+            panelSurfaceV2_.reset(im->getInputPopupSurface(window_->surface()));
+        }
+    }
     if (!visible()) {
         window_->hide();
         return;
@@ -79,7 +100,7 @@ void fcitx::classicui::WaylandInputWindow::update(fcitx::InputContext *ic) {
         window_->resize(width, height);
     }
 
-    if (auto surface = window_->prerender()) {
+    if (auto *surface = window_->prerender()) {
         cairo_t *c = cairo_create(surface);
         paint(c, width, height);
         cairo_destroy(c);
@@ -89,12 +110,14 @@ void fcitx::classicui::WaylandInputWindow::update(fcitx::InputContext *ic) {
     }
 }
 
-void fcitx::classicui::WaylandInputWindow::repaint() {
+void WaylandInputWindow::repaint() {
 
-    if (auto surface = window_->prerender()) {
+    if (auto *surface = window_->prerender()) {
         cairo_t *c = cairo_create(surface);
         paint(c, window_->width(), window_->height());
         cairo_destroy(c);
         window_->render();
     }
 }
+
+} // namespace fcitx::classicui

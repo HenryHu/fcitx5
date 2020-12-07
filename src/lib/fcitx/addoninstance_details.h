@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_ADDONINSTANCE_DETAILS_H_
 #define _FCITX_ADDONINSTANCE_DETAILS_H_
 
@@ -45,8 +33,12 @@ template <typename Signature>
 using AddonFunctionSignatureType =
     typename AddonFunctionSignature<Signature>::type;
 
+template <typename CallbackType>
+class AddonFunctionAdaptor;
+
 template <typename Class, typename Ret, typename... Args>
-class AddonFunctionAdaptor : public AddonFunctionAdaptorErasure<Ret(Args...)> {
+class AddonFunctionAdaptor<Ret (Class::*)(Args...)>
+    : public AddonFunctionAdaptorErasure<Ret(Args...)> {
 public:
     typedef Ret (Class::*CallbackType)(Args...);
     typedef Ret Signature(Args...);
@@ -68,8 +60,31 @@ private:
 };
 
 template <typename Class, typename Ret, typename... Args>
-AddonFunctionAdaptor<Class, Ret, Args...>
-    MakeAddonFunctionAdaptor(Ret (Class::*pCallback)(Args...));
+class AddonFunctionAdaptor<Ret (Class::*)(Args...) const>
+    : public AddonFunctionAdaptorErasure<Ret(Args...)> {
+public:
+    typedef Ret (Class::*CallbackType)(Args...) const;
+    typedef Ret Signature(Args...);
+
+    AddonFunctionAdaptor(const std::string &name, Class *addon,
+                         CallbackType pCallback)
+        : AddonFunctionAdaptorErasure<Ret(Args...)>(), addon_(addon),
+          pCallback_(pCallback) {
+        addon->registerCallback(name, this);
+    }
+
+    Ret callback(Args... args) override {
+        return (addon_->*pCallback_)(args...);
+    }
+
+private:
+    Class *addon_;
+    CallbackType pCallback_;
+};
+
+template <typename CallbackType>
+AddonFunctionAdaptor<CallbackType>
+MakeAddonFunctionAdaptor(CallbackType pCallback);
 
 } // namespace fcitx
 

@@ -1,30 +1,18 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_XCB_XCBKEYBOARD_H_
 #define _FCITX_MODULES_XCB_XCBKEYBOARD_H_
 
-#include "xcb_public.h"
 #include <memory>
 #include <string>
 #include <vector>
 #include <xcb/xcb.h>
 #include <xkbcommon/xkbcommon.h>
+#include "xcb_public.h"
 
 namespace fcitx {
 
@@ -57,6 +45,7 @@ public:
     }
 
 private:
+    xcb_atom_t xkbRulesNamesAtom();
     XCBConnection *conn_;
     uint8_t xkbFirstEvent_ = 0;
     uint8_t xkbMajorOpCode_ = 0;
@@ -64,12 +53,9 @@ private:
     bool hasXKB_ = false;
     xcb_atom_t xkbRulesNamesAtom_ = XCB_ATOM_NONE;
 
-    std::unique_ptr<struct xkb_context, decltype(&xkb_context_unref)> context_{
-        nullptr, &xkb_context_unref};
-    std::unique_ptr<struct xkb_keymap, decltype(&xkb_keymap_unref)> keymap_{
-        nullptr, &xkb_keymap_unref};
-    std::unique_ptr<struct xkb_state, decltype(&xkb_state_unref)> state_{
-        nullptr, &xkb_state_unref};
+    UniqueCPtr<struct xkb_context, xkb_context_unref> context_;
+    UniqueCPtr<struct xkb_keymap, xkb_keymap_unref> keymap_;
+    UniqueCPtr<struct xkb_state, xkb_state_unref> state_;
 
     std::vector<std::string> defaultLayouts_;
     std::vector<std::string> defaultVariants_;
@@ -79,6 +65,7 @@ private:
     std::vector<std::unique_ptr<HandlerTableEntry<EventHandler>>>
         eventHandlers_;
 
+    std::unique_ptr<EventSourceTime> updateKeymapEvent_;
     std::unique_ptr<EventSourceTime> xmodmapTimer_;
     int lastSequence_ = 0;
     bool waitingForRefresh_ = false;

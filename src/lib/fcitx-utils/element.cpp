@@ -1,63 +1,16 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "element.h"
 #include <algorithm>
 #include <unordered_map>
+#include "misc_p.h"
 
 namespace fcitx {
-
-template <typename T>
-class OrderedSet {
-    typedef std::list<T> OrderList;
-
-public:
-    bool insert(const T &before, const T &v) {
-        if (dict_.count(v)) {
-            return false;
-        }
-        auto iter =
-            std::find_if(order_.begin(), order_.end(),
-                         [before](const auto &t) { return (t == before); });
-        auto newIter = order_.insert(iter, v);
-        dict_.insert(std::make_pair(v, newIter));
-        return true;
-    }
-
-    bool contains(const T &v) const { return !!dict_.count(v); }
-
-    bool remove(const T &v) {
-        auto iter = dict_.find(v);
-        if (iter == dict_.end()) {
-            return false;
-        }
-        order_.erase(iter->second);
-        dict_.erase(iter);
-        return true;
-    }
-
-    const OrderList &order() const { return order_; }
-
-private:
-    std::unordered_map<T, typename OrderList::iterator> dict_;
-    OrderList order_;
-};
 
 class ElementPrivate {
     typedef std::list<Element *> ElementList;
@@ -85,13 +38,13 @@ void Element::addParent(Element *parent) {
     addEdge(parent, this, nullptr, nullptr);
 }
 
-bool Element::isChild(const Element *child) const {
+bool Element::isChild(const Element *element) const {
     FCITX_D();
-    return d->childs_.contains(const_cast<Element *>(child));
+    return d->childs_.contains(const_cast<Element *>(element));
 }
-bool Element::isParent(const Element *parent) const {
+bool Element::isParent(const Element *element) const {
     FCITX_D();
-    return d->parents_.contains(const_cast<Element *>(parent));
+    return d->parents_.contains(const_cast<Element *>(element));
 }
 
 const std::list<Element *> &Element::parents() const {
@@ -128,13 +81,13 @@ void Element::removeEdge(Element *parent, Element *child) {
 }
 
 void Element::removeAllParent() {
-    while (parents().size()) {
+    while (!parents().empty()) {
         removeParent(parents().front());
     }
 }
 
 void Element::removeAllChild() {
-    while (childs().size()) {
+    while (!childs().empty()) {
         childs().front()->removeParent(this);
     }
 }

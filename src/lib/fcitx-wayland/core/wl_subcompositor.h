@@ -1,10 +1,9 @@
 #ifndef WL_SUBCOMPOSITOR
 #define WL_SUBCOMPOSITOR
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlSubsurface;
 class WlSurface;
 class WlSubcompositor final {
@@ -27,11 +26,10 @@ private:
     static void destructor(wl_subcompositor *);
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_subcompositor, decltype(&destructor)> data_;
+    UniqueCPtr<wl_subcompositor, &destructor> data_;
 };
 static inline wl_subcompositor *rawPointer(WlSubcompositor *p) {
     return p ? static_cast<wl_subcompositor *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

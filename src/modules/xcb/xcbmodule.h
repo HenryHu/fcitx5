@@ -1,24 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_XCB_XCBMODULE_H_
 #define _FCITX_MODULES_XCB_XCBMODULE_H_
 
+#include <list>
+#include <unordered_map>
+#include <vector>
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/event.h"
 #include "fcitx-utils/handlertable.h"
@@ -30,9 +21,6 @@
 #include "fcitx/instance.h"
 #include "xcb_public.h"
 #include "xcbconnection.h"
-#include <list>
-#include <unordered_map>
-#include <vector>
 
 namespace fcitx {
 
@@ -43,12 +31,13 @@ FCITX_CONFIGURATION(XCBConfig,
 
 class XCBConnection;
 
-class XCBModule : public AddonInstance {
+class XCBModule final : public AddonInstance {
 public:
     XCBModule(Instance *instance);
 
     void openConnection(const std::string &name);
     void removeConnection(const std::string &name);
+    std::string mainDisplay() { return mainDisplay_; }
     const XCBConfig &config() const { return config_; }
     Instance *instance() { return instance_; }
 
@@ -79,6 +68,8 @@ public:
                     bool exists);
     xcb_ewmh_connection_t *ewmh(const std::string &name);
 
+    FCITX_ADDON_DEPENDENCY_LOADER(notifications, instance_->addonManager());
+
 private:
     void onConnectionCreated(XCBConnection &conn);
     void onConnectionClosed(XCBConnection &conn);
@@ -99,7 +90,14 @@ private:
     FCITX_ADDON_EXPORT_FUNCTION(XCBModule, convertSelection);
     FCITX_ADDON_EXPORT_FUNCTION(XCBModule, atom);
     FCITX_ADDON_EXPORT_FUNCTION(XCBModule, ewmh);
+    FCITX_ADDON_EXPORT_FUNCTION(XCBModule, mainDisplay);
 };
+
+FCITX_DECLARE_LOG_CATEGORY(xcb_log);
+
+#define FCITX_XCB_DEBUG() FCITX_LOGC(::fcitx::xcb_log, Debug)
+#define FCITX_XCB_WARN() FCITX_LOGC(::fcitx::xcb_log, Debug)
+
 } // namespace fcitx
 
 #endif // _FCITX_MODULES_XCB_XCBMODULE_H_

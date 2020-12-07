@@ -1,54 +1,40 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "xcbwindow.h"
 #include <cairo/cairo-xcb.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_aux.h>
+#include "common.h"
 
-namespace fcitx {
-namespace classicui {
+namespace fcitx::classicui {
 
-XCBWindow::XCBWindow(XCBUI *ui, int width, int height)
-    : Window(), ui_(ui), surface_(nullptr, &cairo_surface_destroy),
-      contentSurface_(nullptr, &cairo_surface_destroy) {
+XCBWindow::XCBWindow(XCBUI *ui, int width, int height) : ui_(ui) {
     Window::resize(width, height);
 }
 
 XCBWindow::~XCBWindow() { destroyWindow(); }
 
 void XCBWindow::createWindow(xcb_visualid_t vid, bool overrideRedirect) {
-    auto conn = ui_->connection();
+    auto *conn = ui_->connection();
 
     if (wid_) {
         destroyWindow();
     }
     xcb_screen_t *screen = xcb_aux_get_screen(conn, ui_->defaultScreen());
 
-    if (!vid) {
-        vid = ui_->visualId();
+    if (vid == ui_->visualId()) {
+        colorMap_ = ui_->colorMap();
+    } else if (vid) {
+        colorMap_ = xcb_generate_id(conn);
+        xcb_create_colormap(conn, XCB_COLORMAP_ALLOC_NONE, colorMap_,
+                            screen->root, vid);
     } else {
-        if (vid != ui_->visualId()) {
-            colorMap_ = xcb_generate_id(conn);
-            xcb_create_colormap(conn, XCB_COLORMAP_ALLOC_NONE, colorMap_,
-                                screen->root, vid);
-        }
+        colorMap_ = XCB_COPY_FROM_PARENT;
     }
 
     wid_ = xcb_generate_id(conn);
@@ -72,15 +58,14 @@ void XCBWindow::createWindow(xcb_visualid_t vid, bool overrideRedirect) {
     params.backing_store = XCB_BACKING_STORE_WHEN_MAPPED;
     params.override_redirect = overrideRedirect ? 1 : 0;
     params.save_under = 1;
-    params.colormap = colorMap_ ? colorMap_ : ui_->colorMap();
+    params.colormap = colorMap_;
     vid_ = vid;
 
     auto cookie = xcb_aux_create_window_checked(
         conn, depth, wid_, screen->root, 0, 0, width_, height_, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT, vid, valueMask, &params);
-    if (auto error = xcb_request_check(conn, cookie)) {
+    if (auto error = makeUniqueCPtr(xcb_request_check(conn, cookie))) {
         CLASSICUI_DEBUG() << static_cast<int>(error->error_code);
-        free(error);
     } else {
         CLASSICUI_DEBUG() << "Window created id: " << wid_;
     }
@@ -91,7 +76,10 @@ void XCBWindow::createWindow(xcb_visualid_t vid, bool overrideRedirect) {
         });
 
     surface_.reset(cairo_xcb_surface_create(
-        conn, wid_, xcb_aux_find_visual_by_id(screen, vid), width_, height_));
+        conn, wid_,
+        vid ? xcb_aux_find_visual_by_id(screen, vid)
+            : xcb_aux_find_visual_by_id(screen, screen->root_visual),
+        width_, height_));
     contentSurface_.reset();
 
     postCreateWindow();
@@ -99,7 +87,7 @@ void XCBWindow::createWindow(xcb_visualid_t vid, bool overrideRedirect) {
 }
 
 void XCBWindow::destroyWindow() {
-    auto conn = ui_->connection();
+    auto *conn = ui_->connection();
     eventFilter_.reset();
     if (wid_) {
         xcb_destroy_window(conn, wid_);
@@ -135,7 +123,7 @@ cairo_surface_t *XCBWindow::prerender() {
 }
 
 void XCBWindow::render() {
-    auto cr = cairo_create(surface_.get());
+    auto *cr = cairo_create(surface_.get());
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     cairo_set_source_surface(cr, contentSurface_.get(), 0, 0);
     cairo_paint(cr);
@@ -143,5 +131,4 @@ void XCBWindow::render() {
     xcb_flush(ui_->connection());
     CLASSICUI_DEBUG() << "Render";
 }
-} // namespace classicui
-} // namespace fcitx
+} // namespace fcitx::classicui

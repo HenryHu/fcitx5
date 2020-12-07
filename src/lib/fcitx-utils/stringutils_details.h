@@ -1,25 +1,12 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_STRINGUTILS_DETAIL_H_
 #define _FCITX_UTILS_STRINGUTILS_DETAIL_H_
 
-#include "fcitxutils_export.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
@@ -28,10 +15,9 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include "fcitxutils_export.h"
 
-namespace fcitx {
-namespace stringutils {
-namespace details {
+namespace fcitx::stringutils::details {
 
 template <typename T>
 struct UniversalPieceHelper {
@@ -100,7 +86,7 @@ public:
 
     std::pair<const char *, std::size_t>
     toPathPair(const bool removePrefixSlash = true) const {
-        auto piece = piece_;
+        const auto *piece = piece_;
         auto size = size_;
         // Consume prefix and suffix slash.
         if (removePrefixSlash) {
@@ -122,9 +108,10 @@ public:
     }
 
 private:
+    static constexpr int IntegerBufferSize = 30;
     const char *piece_;
     std::size_t size_;
-    char buffer_[30];
+    char buffer_[IntegerBufferSize];
 };
 
 FCITXUTILS_EXPORT std::string
@@ -133,30 +120,6 @@ concatPieces(std::initializer_list<std::pair<const char *, std::size_t>> list);
 FCITXUTILS_EXPORT std::string concatPathPieces(
     std::initializer_list<std::pair<const char *, std::size_t>> list);
 
-} // namespace details
-
-template <typename... Args>
-std::string concat(const Args &... args) {
-    using namespace ::fcitx::stringutils::details;
-    return concatPieces({static_cast<const UniversalPiece &>(
-                             details::UniversalPieceHelper<Args>::forward(args))
-                             .toPair()...});
-}
-
-template <typename FirstArg, typename... Args>
-std::string joinPath(const FirstArg &firstArg, const Args &... args) {
-    using namespace ::fcitx::stringutils::details;
-    return concatPathPieces(
-        {static_cast<const UniversalPiece &>(
-             UniversalPieceHelper<FirstArg>::forward(firstArg))
-             .toPathPair(false),
-         static_cast<const UniversalPiece &>(
-             UniversalPieceHelper<Args>::forward(args))
-             .toPathPair()...});
-}
-
-} // namespace stringutils
-
-} // namespace fcitx
+} // namespace fcitx::stringutils::details
 
 #endif // _FCITX_UTILS_STRINGUTILS_DETAIL_H_

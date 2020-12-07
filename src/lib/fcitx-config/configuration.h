@@ -1,37 +1,28 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_CONFIG_CONFIGURATION_H_
 #define _FCITX_CONFIG_CONFIGURATION_H_
 
-#include "fcitxconfig_export.h"
 #include <fcitx-config/option.h>
 #include <fcitx-utils/macros.h>
+#include "fcitxconfig_export.h"
 
 #include <memory>
 
-#define FCITX_CONFIGURATION(NAME, ...)                                         \
+#define FCITX_CONFIGURATION_EXTEND(NAME, SUBCLASS, ...)                        \
     class NAME;                                                                \
     FCITX_SPECIALIZE_TYPENAME(NAME, #NAME)                                     \
-    FCITX_CONFIGURATION_CLASS(NAME, __VA_ARGS__)
+    FCITX_CONFIGURATION_CLASS_EXTEND(NAME, SUBCLASS, __VA_ARGS__)
 
-#define FCITX_CONFIGURATION_CLASS(NAME, ...)                                   \
-    class NAME : public ::fcitx::Configuration {                               \
+#define FCITX_CONFIGURATION(NAME, ...)                                         \
+    FCITX_CONFIGURATION_EXTEND(NAME, ::fcitx::Configuration, __VA_ARGS__)
+
+#define FCITX_CONFIGURATION_CLASS_EXTEND(NAME, SUBCLASS, ...)                  \
+    class NAME : public SUBCLASS {                                             \
     public:                                                                    \
         NAME() {}                                                              \
         NAME(const NAME &other) : NAME() { copyHelper(other); }                \
@@ -48,11 +39,9 @@
         __VA_ARGS__                                                            \
     };
 
-#define FCITX_OPTION(name, type, path, description, default, ...)              \
-    ::fcitx::Option<type> name {                                               \
-        this, std::string(path), std::string(description), (default),          \
-            __VA_ARGS__                                                        \
-    }
+#define FCITX_CONFIGURATION_CLASS(NAME, ...)                                   \
+    FCITX_CONFIGURATION_CLASS_EXTEND(NAME, ::fcitx::Configuration, __VA_ARGS__)
+
 namespace fcitx {
 
 class ConfigurationPrivate;
@@ -70,6 +59,14 @@ public:
     void save(RawConfig &config) const;
     void dumpDescription(RawConfig &config) const;
     virtual const char *typeName() const = 0;
+
+    /**
+     * Set default value to current value.
+     *
+     * Sometimes, we need to customize the default value for the same type. This
+     * function will set the default value to current value.
+     */
+    void syncDefaultValueToCurrent();
 
 protected:
     bool compareHelper(const Configuration &other) const;

@@ -1,30 +1,18 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "fs.h"
-#include <algorithm>
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
+#include "stringutils.h"
 
-namespace fcitx {
-namespace fs {
+namespace fcitx::fs {
 
 bool isdir(const std::string &path) {
     struct stat stats;
@@ -55,12 +43,18 @@ std::string cleanPath(const std::string &path) {
         buf.push_back(path[i]);
         i++;
     }
+    const size_t leading = i;
 
     int levels = 0;
     while (true) {
         size_t dotcount = 0;
-        size_t last = buf.size();
-        size_t lasti = i;
+        const size_t last = buf.size();
+        const size_t lasti = i;
+        // We have something already in the path, push a new slash.
+        if (last > leading) {
+            buf.push_back('/');
+        }
+        // Find still next '/' and count '.'
         while (i < path.size() && path[i] != '/') {
             if (path[i] == '.') {
                 dotcount++;
@@ -71,21 +65,25 @@ std::string cleanPath(const std::string &path) {
             i++;
         }
 
-        bool eaten = false;
         // everything is a dot
         if (dotcount == i - lasti) {
             if (dotcount == 1) {
                 buf.erase(last);
-                eaten = true;
             } else if (dotcount == 2) {
-                if (levels > 0) {
-                    for (int k = last - 2; k >= 0; k--) {
-                        if (buf[k] == '/') {
-                            buf.erase(k + 1);
-                            eaten = true;
+                // If we already at the beginning, don't go up.
+                if (levels > 0 && last != leading) {
+                    size_t k;
+                    for (k = last; k > leading; k--) {
+                        if (buf[k - 1] == '/') {
                             break;
                         }
                     }
+                    if (k == leading) {
+                        buf.erase(k);
+                    } else if (buf[k - 1] == '/') {
+                        buf.erase(k - 1);
+                    }
+                    levels--;
                 }
             } else {
                 levels++;
@@ -94,26 +92,26 @@ std::string cleanPath(const std::string &path) {
             levels++;
         }
 
-        if (i >= path.size()) {
-            break;
-        }
-
-        while (path[i] == '/') {
+        while (i < path.size() && path[i] == '/') {
             i++;
         }
 
-        if (!eaten) {
-            buf.push_back('/');
+        if (i >= path.size()) {
+            break;
         }
+    }
+    if (stringutils::startsWith(buf, "./")) {
+        return buf.substr(2);
     }
     return buf;
 }
 
 bool makePath(const std::string &path) {
-    if (isdir(path))
+    if (isdir(path)) {
         return true;
+    }
     auto opath = cleanPath(path);
-    while (opath.size() && opath.back() == '/') {
+    while (!opath.empty() && opath.back() == '/') {
         opath.pop_back();
     }
 
@@ -132,7 +130,7 @@ bool makePath(const std::string &path) {
 
             if (mkdir(curpath.c_str(), S_IRWXU) != 0) {
                 if (errno == EEXIST) {
-                    if (!isdir(curpath.c_str())) {
+                    if (!isdir(curpath)) {
                         return false;
                     }
                 }
@@ -141,9 +139,8 @@ bool makePath(const std::string &path) {
 
         if (iter == opath.end()) {
             break;
-        } else {
-            iter++;
         }
+        iter++;
     }
     return true;
 }
@@ -202,5 +199,26 @@ ssize_t safeWrite(int fd, const void *data, size_t maxlen) {
     } while (ret == -1 && errno == EINTR);
     return ret;
 }
-} // namespace fs
-} // namespace fcitx
+
+std::optional<std::string> readlink(const std::string &path) {
+    std::string buffer;
+    buffer.resize(256);
+    ssize_t readSize;
+
+    while (true) {
+        readSize = ::readlink(path.data(), buffer.data(), buffer.size());
+        if (readSize < 0) {
+            return std::nullopt;
+        }
+
+        if (static_cast<size_t>(readSize) < buffer.size()) {
+            buffer.resize(readSize);
+            return buffer;
+        }
+
+        buffer.resize(buffer.size() * 2);
+    }
+    return std::nullopt;
+}
+
+} // namespace fcitx::fs

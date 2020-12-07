@@ -1,28 +1,17 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_EVENT_H_
 #define _FCITX_EVENT_H_
 
-#include "fcitxcore_export.h"
+#include <stdint.h>
+#include <fcitx-utils/capabilityflags.h>
 #include <fcitx-utils/key.h>
 #include <fcitx/userinterface.h>
-#include <stdint.h>
+#include "fcitxcore_export.h"
 
 namespace fcitx {
 
@@ -47,6 +36,7 @@ enum class InputMethodSwitchedReason {
     Activate,
     Enumerate,
     GroupChange,
+    CapabilityChanged,
     Other,
 };
 
@@ -83,6 +73,7 @@ enum class EventType : uint32_t {
     InputContextSurroundingTextUpdated = InputContextEventFlag | 0x7,
     InputContextCapabilityChanged = InputContextEventFlag | 0x8,
     InputContextCursorRectChanged = InputContextEventFlag | 0x9,
+    InputContextCapabilityAboutToChange = InputContextEventFlag | 0xD,
     /**
      * when user switch to a different input method by hand
      * such as ctrl+shift by default, or by ui,
@@ -114,16 +105,45 @@ enum class EventType : uint32_t {
     InputMethodGroupAboutToChange = InstanceEventFlag | 0x2,
 };
 
+/**
+ * Base class for fcitx event.
+ */
 class FCITXCORE_EXPORT Event {
 public:
     Event(EventType type) : type_(type) {}
     virtual ~Event();
 
+    /**
+     * Type of event, can be used to decide event class.
+     *
+     * @return fcitx::EventType
+     */
     EventType type() const { return type_; }
+
     void accept() { accepted_ = true; }
+    /**
+     * Return value used by Instance::postEvent.
+     *
+     * @see Instance::postEvent
+     * @return bool
+     */
     bool accepted() const { return accepted_; }
+
+    /**
+     * Whether a event is filtered by handler.
+     *
+     * If event is filtered, it will not send to another handler.
+     * For now only keyevent from input context can be filtered.
+     *
+     * @return bool
+     */
     virtual bool filtered() const { return false; }
 
+    /**
+     * A helper function to check if a event is input context event.
+     *
+     * @return bool
+     */
     bool isInputContextEvent() const {
         auto flag = static_cast<uint32_t>(EventType::InputContextEventFlag);
         return (static_cast<uint32_t>(type_) & flag) == flag;
@@ -153,11 +173,23 @@ public:
           origKey_(key_), rawKey_(rawKey), isRelease_(isRelease), time_(time) {}
     KeyEventBase(const KeyEventBase &) = default;
 
+    /**
+     * Normalized key event.
+     *
+     * @return fcitx::Key
+     */
     Key key() const { return key_; }
+
     void setKey(const Key &key) {
         key_ = key;
         forward_ = true;
     }
+
+    /**
+     * Key event regardless of keyboard layout conversion.
+     *
+     * @return fcitx::Key
+     */
     Key origKey() const { return origKey_; }
     Key rawKey() const { return rawKey_; }
     bool isRelease() const { return isRelease_; }
@@ -203,7 +235,7 @@ public:
         : InputContextEvent(context, EventType::InputContextCommitString),
           text_(text) {}
 
-    const std::string text() const { return text_; }
+    const std::string &text() const { return text_; }
 
 protected:
     std::string text_;
@@ -293,20 +325,50 @@ FCITX_DEFINE_SIMPLE_EVENT(FocusIn, InputContextFocusIn);
 FCITX_DEFINE_SIMPLE_EVENT(FocusOut, InputContextFocusOut);
 FCITX_DEFINE_SIMPLE_EVENT(SurroundingTextUpdated,
                           InputContextSurroundingTextUpdated);
-FCITX_DEFINE_SIMPLE_EVENT(CapabilityChanged, InputContextCapabilityChanged);
 FCITX_DEFINE_SIMPLE_EVENT(CursorRectChanged, InputContextCursorRectChanged);
 FCITX_DEFINE_SIMPLE_EVENT(UpdatePreedit, InputContextUpdatePreedit);
 
-class InputMethodGroupChangedEvent : public Event {
+class FCITXCORE_EXPORT InputMethodGroupChangedEvent : public Event {
 public:
     InputMethodGroupChangedEvent()
         : Event(EventType::InputMethodGroupChanged) {}
 };
 
-class InputMethodGroupAboutToChangeEvent : public Event {
+class FCITXCORE_EXPORT InputMethodGroupAboutToChangeEvent : public Event {
 public:
     InputMethodGroupAboutToChangeEvent()
         : Event(EventType::InputMethodGroupAboutToChange) {}
+};
+
+class FCITXCORE_EXPORT CapabilityEvent : public InputContextEvent {
+public:
+    CapabilityEvent(InputContext *ic, EventType type, CapabilityFlags oldFlags,
+                    CapabilityFlags newFlags)
+        : InputContextEvent(ic, type), oldFlags_(oldFlags),
+          newFlags_(newFlags) {}
+
+    auto oldFlags() const { return oldFlags_; }
+    auto newFlags() const { return newFlags_; }
+
+protected:
+    const CapabilityFlags oldFlags_;
+    const CapabilityFlags newFlags_;
+};
+
+class FCITXCORE_EXPORT CapabilityChangedEvent : public CapabilityEvent {
+public:
+    CapabilityChangedEvent(InputContext *ic, CapabilityFlags oldFlags,
+                           CapabilityFlags newFlags)
+        : CapabilityEvent(ic, EventType::InputContextCapabilityChanged,
+                          oldFlags, newFlags) {}
+};
+
+class FCITXCORE_EXPORT CapabilityAboutToChangeEvent : public CapabilityEvent {
+public:
+    CapabilityAboutToChangeEvent(InputContext *ic, CapabilityFlags oldFlags,
+                                 CapabilityFlags newFlags)
+        : CapabilityEvent(ic, EventType::InputContextCapabilityAboutToChange,
+                          oldFlags, newFlags) {}
 };
 } // namespace fcitx
 

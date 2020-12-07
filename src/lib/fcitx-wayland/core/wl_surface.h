@@ -1,10 +1,9 @@
 #ifndef WL_SURFACE
 #define WL_SURFACE
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlBuffer;
 class WlCallback;
 class WlOutput;
@@ -42,11 +41,10 @@ private:
     fcitx::Signal<void(WlOutput *)> leaveSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_surface, decltype(&destructor)> data_;
+    UniqueCPtr<wl_surface, &destructor> data_;
 };
 static inline wl_surface *rawPointer(WlSurface *p) {
     return p ? static_cast<wl_surface *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

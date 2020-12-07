@@ -1,48 +1,39 @@
-//
-// Copyright (C) 2012~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2012-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 //
-// Copyright (C) 2007 Daniel Laidig <d.laidig@gmx.de>
+// SPDX-FileCopyrightText: 2007 Daniel Laidig <d.laidig@gmx.de>
 // this file is ported from kdelibs/kdeui/kcharselectdata.cpp
 //
 // original file is licensed under LGPLv2+
 //
 
+#include "charselectdata.h"
+#include <fcntl.h>
+#include <strings.h>
+#include <sys/stat.h>
+#include <algorithm>
+#include <cstring>
+#include <iomanip>
+#include <iostream>
+#include <set>
+#include <stdexcept>
+#include <fmt/format.h>
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/fs.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx-utils/standardpath.h"
 #include "fcitx-utils/stringutils.h"
-#include <algorithm>
-#include <cstring>
-#include <fcntl.h>
-#include <set>
-#include <strings.h>
-#include <sys/stat.h>
+
 #if defined(__linux__) || defined(__GLIBC__)
 #include <endian.h>
 #else
 #include <sys/endian.h>
 #endif
-#include "charselectdata.h"
-#include <iomanip>
-#include <iostream>
 
 using namespace fcitx;
 
@@ -70,7 +61,7 @@ static const char JAMO_T_TABLE[][4] = {"",   "G",  "GG", "GS", "N",  "NJ", "NH",
                                        "LP", "LH", "M",  "B",  "BS", "S",  "SS",
                                        "NG", "J",  "C",  "K",  "T",  "P",  "H"};
 
-char *FormatCode(uint32_t code, int length, const char *prefix);
+std::string FormatCode(uint32_t code, int length, const char *prefix);
 
 uint32_t FromLittleEndian32(const char *d) {
     const uint8_t *data = (const uint8_t *)d;
@@ -88,7 +79,7 @@ uint16_t FromLittleEndian16(const char *d) {
 
 CharSelectData::CharSelectData() {
     auto file = StandardPath::global().open(StandardPath::Type::PkgData,
-                                            "data/charselectdata", O_RDONLY);
+                                            "unicode/charselectdata", O_RDONLY);
     if (file.fd() < 0) {
         throw std::runtime_error("Failed to open unicode data");
     }
@@ -121,11 +112,11 @@ std::vector<std::string> CharSelectData::unihanInfo(uint32_t unicode) {
         mid = (min + max) / 2;
         const uint32_t midUnicode =
             FromLittleEndian16(data + offsetBegin + mid * 32);
-        if (unicode > midUnicode)
+        if (unicode > midUnicode) {
             min = mid + 1;
-        else if (unicode < midUnicode)
+        } else if (unicode < midUnicode) {
             max = mid - 1;
-        else {
+        } else {
             int i;
             for (i = 0; i < 7; i++) {
                 uint32_t offset = FromLittleEndian32(data + offsetBegin +
@@ -158,8 +149,9 @@ uint32_t CharSelectData::findDetailIndex(uint32_t unicode) const {
     static uint32_t most_recent_searched;
     static uint32_t most_recent_result;
 
-    if (unicode == most_recent_searched)
+    if (unicode == most_recent_searched) {
         return most_recent_result;
+    }
 
     most_recent_searched = unicode;
 
@@ -167,11 +159,11 @@ uint32_t CharSelectData::findDetailIndex(uint32_t unicode) const {
         mid = (min + max) / 2;
         const uint32_t midUnicode =
             FromLittleEndian16(data + offsetBegin + mid * 29);
-        if (unicode > midUnicode)
+        if (unicode > midUnicode) {
             min = mid + 1;
-        else if (unicode < midUnicode)
+        } else if (unicode < midUnicode) {
             max = mid - 1;
-        else {
+        } else {
             most_recent_result = offsetBegin + mid * 29;
 
             return most_recent_result;
@@ -208,15 +200,15 @@ std::string CharSelectData::name(uint32_t unicode) const {
             result += JAMO_L_TABLE[LIndex];
             result += JAMO_V_TABLE[VIndex];
             result += JAMO_T_TABLE[TIndex];
-        } else if (unicode >= 0xD800 && unicode <= 0xDB7F)
+        } else if (unicode >= 0xD800 && unicode <= 0xDB7F) {
             result = _("<Non Private Use High Surrogate>");
-        else if (unicode >= 0xDB80 && unicode <= 0xDBFF)
+        } else if (unicode >= 0xDB80 && unicode <= 0xDBFF) {
             result = _("<Private Use High Surrogate>");
-        else if (unicode >= 0xDC00 && unicode <= 0xDFFF)
+        } else if (unicode >= 0xDC00 && unicode <= 0xDFFF) {
             result = _("<Low Surrogate>");
-        else if (unicode >= 0xE000 && unicode <= 0xF8FF)
+        } else if (unicode >= 0xE000 && unicode <= 0xF8FF) {
             result = _("<Private Use>");
-        else {
+        } else {
 
             const char *data = data_.data();
             const uint32_t offsetBegin = FromLittleEndian32(data + 4);
@@ -230,11 +222,11 @@ std::string CharSelectData::name(uint32_t unicode) const {
                 mid = (min + max) / 2;
                 const uint32_t midUnicode =
                     FromLittleEndian32(data + offsetBegin + mid * 8);
-                if (unicode > midUnicode)
+                if (unicode > midUnicode) {
                     min = mid + 1;
-                else if (unicode < midUnicode)
+                } else if (unicode < midUnicode) {
                     max = mid - 1;
-                else {
+                } else {
                     uint32_t offset =
                         FromLittleEndian32(data + offsetBegin + mid * 8 + 4);
                     result = (data_.data() + offset + 1);
@@ -276,8 +268,9 @@ std::string Simplified(const std::string &src) {
 }
 
 bool IsHexString(const std::string &s) {
-    if (s.size() < 6)
+    if (s.size() < 6) {
         return false;
+    }
     if (!((s[0] == '0' && s[1] == 'x') || (s[0] == '0' && s[1] == 'X') ||
           (s[0] == 'u' && s[1] == '+') || (s[0] == 'U' && s[1] == '+'))) {
         return false;
@@ -285,8 +278,9 @@ bool IsHexString(const std::string &s) {
 
     auto i = s.begin() + 2;
     while (i != s.end()) {
-        if (!isxdigit(*i))
+        if (!isxdigit(*i)) {
             return 0;
+        }
         i++;
     }
     return 1;
@@ -305,7 +299,7 @@ std::vector<uint32_t> CharSelectData::find(const std::string &needle) const {
         searchStrings.push_back(format);
     }
 
-    if (searchStrings.size() == 0) {
+    if (searchStrings.empty()) {
         return returnRes;
     }
 
@@ -438,16 +432,11 @@ CharSelectData::approximateEquivalents(uint32_t unicode) const {
     return findStringResult(unicode, 18, 14);
 }
 
-char *FormatCode(uint32_t code, int length, const char *prefix) {
-    char *s = nullptr;
-    char *fmt = nullptr;
-    asprintf(&fmt, "%%s%%0%dX", length);
-    asprintf(&s, fmt, prefix, code);
-    free(fmt);
-    return s;
+std::string FormatCode(uint32_t code, int length, const char *prefix) {
+    return fmt::format("{0}{1:0{2}x}", prefix, code, length);
 }
 
-void CharSelectData::appendToIndex(uint32_t unicode, const char *str) {
+void CharSelectData::appendToIndex(uint32_t unicode, const std::string &str) {
     auto strings = stringutils::split(str, FCITX_WHITESPACE);
     for (auto &s : strings) {
         auto iter = index_.find(s);
@@ -538,9 +527,8 @@ void CharSelectData::createIndex() {
 
         for (j = 0; j < seeAlsoCount; j++) {
             uint32_t seeAlso = FromLittleEndian16(data + seeAlsoOffset);
-            char *code = FormatCode(seeAlso, 4, "");
+            auto code = FormatCode(seeAlso, 4, "");
             appendToIndex(unicode, code);
-            free(code);
             equivOffset += strlen(data + equivOffset) + 1;
         }
     }

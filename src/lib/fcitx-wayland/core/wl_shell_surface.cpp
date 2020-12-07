@@ -1,34 +1,29 @@
 #include "wl_shell_surface.h"
+#include <cassert>
 #include "wl_output.h"
 #include "wl_seat.h"
 #include "wl_surface.h"
-#include <cassert>
-namespace fcitx {
-namespace wayland {
-constexpr const char *WlShellSurface::interface;
-constexpr const wl_interface *const WlShellSurface::wlInterface;
-const uint32_t WlShellSurface::version;
+namespace fcitx::wayland {
 const struct wl_shell_surface_listener WlShellSurface::listener = {
     [](void *data, wl_shell_surface *wldata, uint32_t serial) {
-        auto obj = static_cast<WlShellSurface *>(data);
+        auto *obj = static_cast<WlShellSurface *>(data);
         assert(*obj == wldata);
         { return obj->ping()(serial); }
     },
     [](void *data, wl_shell_surface *wldata, uint32_t edges, int32_t width,
        int32_t height) {
-        auto obj = static_cast<WlShellSurface *>(data);
+        auto *obj = static_cast<WlShellSurface *>(data);
         assert(*obj == wldata);
         { return obj->configure()(edges, width, height); }
     },
     [](void *data, wl_shell_surface *wldata) {
-        auto obj = static_cast<WlShellSurface *>(data);
+        auto *obj = static_cast<WlShellSurface *>(data);
         assert(*obj == wldata);
         { return obj->popupDone()(); }
     },
 };
 WlShellSurface::WlShellSurface(wl_shell_surface *data)
-    : version_(wl_shell_surface_get_version(data)),
-      data_(data, &WlShellSurface::destructor) {
+    : version_(wl_shell_surface_get_version(data)), data_(data) {
     wl_shell_surface_set_user_data(*this, this);
     wl_shell_surface_add_listener(*this, &WlShellSurface::listener, this);
 }
@@ -71,5 +66,4 @@ void WlShellSurface::setTitle(const char *title) {
 void WlShellSurface::setClass(const char *class_) {
     return wl_shell_surface_set_class(*this, class_);
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland

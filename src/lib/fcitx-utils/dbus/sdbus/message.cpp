@@ -1,36 +1,23 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "../message.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <atomic>
+#include <shared_mutex>
+#include <stdexcept>
 #include "../../misc_p.h"
 #include "../../unixfd.h"
 #include "../variant.h"
 #include "bus_p.h"
 #include "message_p.h"
-#include <atomic>
-#include <fcntl.h>
-#include <shared_mutex>
-#include <unistd.h>
 
-namespace fcitx {
-
-namespace dbus {
+namespace fcitx::dbus {
 
 static char toSDBusType(Container::Type type) {
     char t = '\0';
@@ -60,7 +47,7 @@ FCITX_DEFINE_DEFAULT_DTOR_AND_MOVE(Message)
 Message Message::createReply() const {
     FCITX_D();
     Message msg;
-    auto msgD = msg.d_func();
+    auto *msgD = msg.d_func();
     if (sd_bus_message_new_method_return(d->msg_, &msgD->msg_) < 0) {
         msgD->type_ = MessageType::Invalid;
     } else {
@@ -73,7 +60,7 @@ Message Message::createError(const char *name, const char *message) const {
     FCITX_D();
     Message msg;
     sd_bus_error error = SD_BUS_ERROR_MAKE_CONST(name, message);
-    auto msgD = msg.d_func();
+    auto *msgD = msg.d_func();
     int r = sd_bus_message_new_method_error(d->msg_, &msgD->msg_, &error);
     if (r < 0) {
         msgD->type_ = MessageType::Invalid;
@@ -116,7 +103,7 @@ std::string Message::member() const {
     if (!d->msg_) {
         return {};
     }
-    auto member = sd_bus_message_get_member(d->msg_);
+    const auto *member = sd_bus_message_get_member(d->msg_);
     return member ? member : "";
 }
 
@@ -125,7 +112,7 @@ std::string Message::interface() const {
     if (!d->msg_) {
         return {};
     }
-    auto interface = sd_bus_message_get_interface(d->msg_);
+    const auto *interface = sd_bus_message_get_interface(d->msg_);
     return interface ? interface : "";
 }
 
@@ -136,28 +123,26 @@ std::string Message::signature() const {
 
 std::string Message::path() const {
     FCITX_D();
-    auto path = sd_bus_message_get_path(d->msg_);
+    const auto *path = sd_bus_message_get_path(d->msg_);
     return path ? path : "";
 }
 
 std::string Message::errorName() const {
     FCITX_D();
     if (d->msg_) {
-        auto error = sd_bus_message_get_error(d->msg_);
+        const auto *error = sd_bus_message_get_error(d->msg_);
         return error->name;
-    } else {
-        return d->error_;
     }
+    return d->error_;
 }
 
 std::string Message::errorMessage() const {
     FCITX_D();
     if (d->msg_) {
-        auto error = sd_bus_message_get_error(d->msg_);
+        const auto *error = sd_bus_message_get_error(d->msg_);
         return error->message;
-    } else {
-        return d->message_;
     }
+    return d->message_;
 }
 
 void *Message::nativeHandle() const {
@@ -165,26 +150,26 @@ void *Message::nativeHandle() const {
     return d->msg_;
 }
 
-Message Message::call(uint64_t timeout) {
+Message Message::call(uint64_t usec) {
     FCITX_D();
     ScopedSDBusError error;
     sd_bus_message *reply = nullptr;
-    auto bus = sd_bus_message_get_bus(d->msg_);
-    int r = sd_bus_call(bus, d->msg_, timeout, &error.error(), &reply);
+    auto *bus = sd_bus_message_get_bus(d->msg_);
+    int r = sd_bus_call(bus, d->msg_, usec, &error.error(), &reply);
     if (r < 0) {
         return MessagePrivate::fromSDError(error.error());
     }
     return MessagePrivate::fromSDBusMessage(reply, false);
 }
 
-std::unique_ptr<Slot> Message::callAsync(uint64_t timeout,
+std::unique_ptr<Slot> Message::callAsync(uint64_t usec,
                                          MessageCallback callback) {
     FCITX_D();
-    auto bus = sd_bus_message_get_bus(d->msg_);
-    auto slot = std::make_unique<SDSlot>(callback);
+    auto *bus = sd_bus_message_get_bus(d->msg_);
+    auto slot = std::make_unique<SDSlot>(std::move(callback));
     sd_bus_slot *sdSlot = nullptr;
     int r = sd_bus_call_async(bus, &sdSlot, d->msg_, SDMessageCallback,
-                              slot.get(), timeout);
+                              slot.get(), usec);
     if (r < 0) {
         return nullptr;
     }
@@ -234,7 +219,7 @@ std::pair<char, std::string> Message::peekType() {
 
 bool Message::send() {
     FCITX_D();
-    auto bus = sd_bus_message_get_bus(d->msg_);
+    auto *bus = sd_bus_message_get_bus(d->msg_);
     return sd_bus_send(bus, d->msg_, 0) >= 0;
 }
 
@@ -250,7 +235,7 @@ Message &Message::operator>>(bool &b) {
     FCITX_D();
     int i = 0;
     d->lastError_ = sd_bus_message_read_basic(d->msg_, SD_BUS_TYPE_BOOLEAN, &i);
-    b = i ? true : false;
+    b = !!i;
     return *this;
 }
 
@@ -469,5 +454,4 @@ Message &Message::operator>>(Variant &variant) {
     d->lastError_ = sd_bus_message_skip(d->msg_, "v");
     return *this;
 }
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus

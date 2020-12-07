@@ -1,48 +1,35 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "waylandui.h"
-#include "config.h"
-#include "display.h"
+#include <algorithm>
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/stringutils.h"
+#include "config.h"
+#include "display.h"
 #include "waylandinputwindow.h"
 #include "waylandshmwindow.h"
 #include "wl_compositor.h"
 #include "wl_seat.h"
 #include "wl_shell.h"
 #include "wl_shm.h"
-#include "xcbui.h"
 #include "zwp_input_panel_v1.h"
-#include <algorithm>
+#include "zwp_input_popup_surface_v2.h"
 
 #ifdef CAIRO_EGL_FOUND
 
-#include "waylandeglwindow.h"
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <cairo/cairo-gl.h>
+#include "waylandeglwindow.h"
 
 #endif
 
-namespace fcitx {
-namespace classicui {
+namespace fcitx::classicui {
 
 #ifdef CAIRO_EGL_FOUND
 
@@ -94,7 +81,7 @@ WaylandUI::WaylandUI(ClassicUI *parent, const std::string &name,
     display_->requestGlobals<wayland::ZwpInputPanelV1>();
     display_->requestGlobals<wayland::WlSeat>();
     panelConn_ = display_->globalCreated().connect(
-        [this](const std::string &name, std::shared_ptr<void>) {
+        [this](const std::string &name, const std::shared_ptr<void> &) {
             if (name == wayland::ZwpInputPanelV1::interface) {
                 if (inputWindow_) {
                     inputWindow_->initPanel();
@@ -102,7 +89,7 @@ WaylandUI::WaylandUI(ClassicUI *parent, const std::string &name,
             }
         });
     panelRemovedConn_ = display_->globalRemoved().connect(
-        [this](const std::string &name, std::shared_ptr<void>) {
+        [this](const std::string &name, const std::shared_ptr<void> &) {
             if (name == wayland::ZwpInputPanelV1::interface) {
                 if (inputWindow_) {
                     inputWindow_->resetPanel();
@@ -230,10 +217,7 @@ void WaylandUI::update(UserInterfaceComponent component,
     }
 }
 
-void WaylandUI::suspend() {
-    inputWindow_.reset();
-    return;
-}
+void WaylandUI::suspend() { inputWindow_.reset(); }
 
 void WaylandUI::resume() {
     inputWindow_ = std::make_unique<WaylandInputWindow>(this);
@@ -249,5 +233,4 @@ std::unique_ptr<WaylandWindow> WaylandUI::newWindow() {
         return std::make_unique<WaylandShmWindow>(this);
     }
 }
-} // namespace classicui
-} // namespace fcitx
+} // namespace fcitx::classicui

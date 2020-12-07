@@ -1,31 +1,18 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "waylandwindow.h"
 #include "wl_compositor.h"
 #include "wl_output.h"
 #include "wl_surface.h"
 
-namespace fcitx {
-namespace classicui {
+namespace fcitx::classicui {
 
-WaylandWindow::WaylandWindow(WaylandUI *ui) : Window(), ui_(ui) {}
+WaylandWindow::WaylandWindow(WaylandUI *ui) : ui_(ui) {}
 
 WaylandWindow::~WaylandWindow() {}
 
@@ -38,7 +25,7 @@ void WaylandWindow::createWindow() {
     surface_->setUserData(this);
     conns_.emplace_back(
         surface_->enter().connect([this](wayland::WlOutput *output) {
-            auto info = ui_->display()->outputInformation(output);
+            const auto *info = ui_->display()->outputInformation(output);
             if (!info) {
                 return;
             }
@@ -70,5 +57,4 @@ void bufferToSurfaceSize(enum wl_output_transform buffer_transform,
     *width /= buffer_scale;
     *height /= buffer_scale;
 }
-} // namespace classicui
-} // namespace fcitx
+} // namespace fcitx::classicui

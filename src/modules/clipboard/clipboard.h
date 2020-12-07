@@ -1,35 +1,25 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_CLIPBOARD_CLIPBOARD_H_
 #define _FCITX_MODULES_CLIPBOARD_CLIPBOARD_H_
 
-#include "clipboard_public.h"
+#include <map>
 #include "fcitx-config/configuration.h"
 #include "fcitx-config/enum.h"
+#include "fcitx-config/iniparser.h"
 #include "fcitx-utils/key.h"
+#include "fcitx-utils/misc_p.h"
 #include "fcitx-utils/standardpath.h"
 #include "fcitx/addonfactory.h"
 #include "fcitx/addoninstance.h"
 #include "fcitx/inputcontextproperty.h"
 #include "fcitx/instance.h"
+#include "clipboard_public.h"
 #include "xcb_public.h"
-#include <map>
 
 namespace fcitx {
 
@@ -41,7 +31,7 @@ FCITX_CONFIGURATION(ClipboardConfig,
                                              KeyListConstrain()};
                     Option<int, IntConstrain> numOfEntries{
                         this, "Number of entries", "Number of entries", 5,
-                        IntConstrain(3, 10)};);
+                        IntConstrain(3, 30)};);
 
 class ClipboardState;
 class Clipboard final : public AddonInstance {
@@ -56,6 +46,12 @@ public:
     auto &factory() { return factory_; }
 
     void reloadConfig() override;
+
+    const Configuration *getConfig() const override { return &config_; }
+    void setConfig(const RawConfig &config) override {
+        config_.load(config, true);
+        safeSaveAsIni(config_, "conf/clipboard.conf");
+    }
 
     std::string primary(const InputContext *ic);
     std::string clipboard(const InputContext *ic);
@@ -82,7 +78,7 @@ private:
         selectionCallbacks_;
     std::unique_ptr<HandlerTableEntryBase> primaryCallback_;
     std::unique_ptr<HandlerTableEntryBase> clipboardCallback_;
-    std::list<std::string> history_;
+    OrderedSet<std::string> history_;
     std::string primary_;
 };
 } // namespace fcitx

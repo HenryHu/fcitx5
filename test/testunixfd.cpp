@@ -1,26 +1,14 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
-#include "fcitx-utils/log.h"
-#include "fcitx-utils/unixfd.h"
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "fcitx-utils/log.h"
+#include "fcitx-utils/unixfd.h"
 
 using namespace fcitx;
 
@@ -31,6 +19,7 @@ int main() {
     umask(S_IXUSR | S_IRWXG | S_IRWXO);
     int f = mkstemp(fname);
     FCITX_ASSERT(f != -1);
+    // Test empty unixfd.
     {
         UnixFD fd;
         FCITX_ASSERT(fd.fd() == -1);
@@ -45,6 +34,7 @@ int main() {
         fdnum = fd.fd();
     }
 
+    // Test release and close.
     FCITX_ASSERT(!fd_is_valid(fdnum));
     {
         UnixFD fd(f);
@@ -56,6 +46,7 @@ int main() {
     FCITX_ASSERT(fd_is_valid(fdnum));
     close(fdnum);
     FCITX_ASSERT(!fd_is_valid(fdnum));
+    // Test release.
     {
         UnixFD fd1(f);
         FCITX_ASSERT(fd1.fd() != f);
@@ -63,6 +54,20 @@ int main() {
         FCITX_ASSERT(fd1.fd() == -1);
     }
     FCITX_ASSERT(fd_is_valid(fdnum));
+    {
+        UnixFD fd1 = UnixFD::own(fdnum);
+        FCITX_ASSERT(fd1.fd() == fdnum);
+    }
+    FCITX_ASSERT(!fd_is_valid(fdnum));
+    // Test set to invalid fd.
+    {
+        UnixFD fd1(f);
+        FCITX_ASSERT(fd1.fd() != f);
+        fdnum = fd1.fd();
+        fd1.set(-1);
+        FCITX_ASSERT(fd1.fd() == -1);
+    }
+    FCITX_ASSERT(!fd_is_valid(fdnum));
 
     unlink(fname);
     return 0;

@@ -1,32 +1,20 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_CONFIG_RAWCONFIG_H_
 #define _FCITX_CONFIG_RAWCONFIG_H_
 
-#include "fcitxconfig_export.h"
 #include <algorithm>
-#include <fcitx-utils/log.h>
-#include <fcitx-utils/macros.h>
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+#include <fcitx-utils/log.h>
+#include <fcitx-utils/macros.h>
+#include "fcitxconfig_export.h"
 
 namespace fcitx {
 
@@ -37,8 +25,8 @@ typedef std::shared_ptr<RawConfig> RawConfigPtr;
 class RawConfigPrivate;
 class FCITXCONFIG_EXPORT RawConfig {
 public:
-    explicit RawConfig(std::string name = "", std::string value = "");
-    FCITX_DECLARE_VIRTUAL_DTOR_COPY_AND_MOVE(RawConfig)
+    RawConfig();
+    FCITX_DECLARE_VIRTUAL_DTOR_COPY(RawConfig)
 
     std::shared_ptr<RawConfig> get(const std::string &path,
                                    bool create = false);
@@ -46,7 +34,7 @@ public:
     bool remove(const std::string &path);
     void removeAll();
     void setValue(std::string value);
-    void setComment(std::string value);
+    void setComment(std::string comment);
     void setLineNumber(unsigned int lineNumber);
     const std::string &name() const;
     const std::string &comment() const;
@@ -56,7 +44,7 @@ public:
     size_t subItemsSize() const;
     std::vector<std::string> subItems() const;
     void setValueByPath(const std::string &path, std::string value) {
-        (*this)[path] = value;
+        (*this)[path] = std::move(value);
     }
 
     const std::string *valueByPath(const std::string &path) const {
@@ -83,10 +71,7 @@ public:
         return visitSubItems(
             [&other](const RawConfig &subConfig, const std::string &path) {
                 auto otherSubConfig = other.get(path);
-                if (!otherSubConfig || *otherSubConfig != subConfig) {
-                    return false;
-                }
-                return true;
+                return (otherSubConfig && *otherSubConfig == subConfig);
             });
     }
 
@@ -115,6 +100,9 @@ public:
         const std::string &path) const;
 
 private:
+    friend class RawConfigPrivate;
+    RawConfig(std::string name);
+    std::shared_ptr<RawConfig> createSub(std::string name);
     FCITX_DECLARE_PRIVATE(RawConfig);
     std::unique_ptr<RawConfigPrivate> d_ptr;
 };

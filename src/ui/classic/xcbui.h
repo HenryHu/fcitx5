@@ -1,28 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UI_CLASSIC_XCBUI_H_
 #define _FCITX_UI_CLASSIC_XCBUI_H_
 
-#include "classicui.h"
+#include <pango/pangocairo.h>
 #include "fcitx-utils/rect.h"
-
-#undef None
+#include "classicui.h"
 
 namespace fcitx {
 namespace classicui {
@@ -32,15 +19,17 @@ class XCBTrayWindow;
 
 enum class MultiScreenExtension { Randr, Xinerama, EXTNone };
 
-enum class XCBHintStyle { Default, None, Medium, Slight, Full };
+enum class XCBHintStyle { Default, NoHint, Medium, Slight, Full };
 
-enum class XCBRGBA { Default, None, RGB, BGR, VRGB, VBGR };
+enum class XCBRGBA { Default, NoRGBA, RGB, BGR, VRGB, VBGR };
 
 struct XCBFontOption {
     int dpi = -1;
     bool antialias = true;
     XCBHintStyle hint = XCBHintStyle::Default;
     XCBRGBA rgba = XCBRGBA::Default;
+
+    void setupPangoContext(PangoContext *context) const;
 };
 
 class XCBUI : public UIInterface {
@@ -72,6 +61,8 @@ public:
 
 private:
     void refreshCompositeManager();
+    void refreshManager();
+    void readXSettings();
     void initScreen();
     void updateTray();
 
@@ -86,12 +77,20 @@ private:
     std::unique_ptr<XCBTrayWindow> trayWindow_;
     bool enableTray_ = false;
 
+    std::string iconThemeName_;
+
     std::string compMgrAtomString_;
     xcb_atom_t compMgrAtom_ = XCB_ATOM_NONE;
     xcb_window_t compMgrWindow_ = XCB_WINDOW_NONE;
 
+    xcb_atom_t managerAtom_ = XCB_ATOM_NONE;
+    xcb_atom_t xsettingsSelectionAtom_ = XCB_ATOM_NONE;
+    xcb_atom_t xsettingsWindow_ = XCB_WINDOW_NONE;
+    xcb_atom_t xsettingsAtom_ = XCB_ATOM_NONE;
+
     XCBFontOption fontOption_;
     int maxDpi_ = -1;
+    int primaryDpi_ = -1;
     MultiScreenExtension multiScreen_ = MultiScreenExtension::EXTNone;
     int xrandrFirstEvent_ = 0;
 

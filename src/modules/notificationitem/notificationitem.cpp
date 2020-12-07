@@ -1,33 +1,22 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "notificationitem.h"
-#include "dbusmenu.h"
+#include <unistd.h>
+#include <fmt/format.h>
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/dbus/message.h"
 #include "fcitx-utils/dbus/objectvtable.h"
+#include "fcitx-utils/fs.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx/addonfactory.h"
 #include "fcitx/addonmanager.h"
 #include "fcitx/inputmethodentry.h"
-#include <fmt/format.h>
-#include <unistd.h>
+#include "dbusmenu.h"
 
 #define NOTIFICATION_ITEM_DBUS_IFACE "org.kde.StatusNotifierItem"
 #define NOTIFICATION_ITEM_DEFAULT_OBJ "/StatusNotifierItem"
@@ -39,7 +28,9 @@ namespace fcitx {
 
 class StatusNotifierItem : public dbus::ObjectVTable<StatusNotifierItem> {
 public:
-    StatusNotifierItem(NotificationItem *parent) : parent_(parent) {}
+    StatusNotifierItem(NotificationItem *parent) : parent_(parent) {
+        FCITX_LOG_IF(Info, inFlatpak_) << "Running inside flatpak.";
+    }
 
     void scroll(int delta, const std::string &_orientation) {
         std::string orientation = _orientation;
@@ -61,15 +52,33 @@ public:
     void activate(int, int) { parent_->instance()->toggle(); }
     void secondaryActivate(int, int) {}
     std::string iconName() {
-        if (auto ic = parent_->instance()->lastFocusedInputContext()) {
-            if (auto entry = parent_->instance()->inputMethodEntry(ic)) {
-                return entry->icon();
+        std::string icon = "input-keyboard-symbolic";
+        if (auto *ic = parent_->instance()->lastFocusedInputContext()) {
+            if (const auto *entry = parent_->instance()->inputMethodEntry(ic)) {
+                icon = entry->icon();
             }
         }
-        return "input-keyboard";
+        if (icon == "input-keyboard") {
+            return "input-keyboard-symbolic";
+        }
+        return IconTheme::iconName(icon, inFlatpak_);
     }
 
-    dbus::DBusStruct<
+    std::string label() {
+        if (!parent_->config().showLabel.value()) {
+            return "";
+        }
+        if (auto *ic = parent_->instance()->lastFocusedInputContext()) {
+            if (const auto *entry = parent_->instance()->inputMethodEntry(ic)) {
+                if (entry->isKeyboard() || entry->icon().empty()) {
+                    return entry->label();
+                }
+            }
+        }
+        return "";
+    }
+
+    static dbus::DBusStruct<
         std::string,
         std::vector<dbus::DBusStruct<int32_t, int32_t, std::vector<uint8_t>>>,
         std::string, std::string>
@@ -101,15 +110,15 @@ public:
     FCITX_OBJECT_VTABLE_PROPERTY(title, "Title", "s",
                                  []() { return _("Input Method"); });
     FCITX_OBJECT_VTABLE_PROPERTY(tooltip, "ToolTip", "(sa(iiay)ss)",
-                                 [this]() { return tooltip(); });
+                                 []() { return tooltip(); });
     FCITX_OBJECT_VTABLE_PROPERTY(iconThemePath, "IconThemePath", "s",
                                  []() { return ""; });
     FCITX_OBJECT_VTABLE_PROPERTY(menu, "Menu", "o",
                                  []() { return dbus::ObjectPath("/MenuBar"); });
     FCITX_OBJECT_VTABLE_PROPERTY(xayatanaLabel, "XAyatanaLabel", "s",
-                                 []() { return ""; });
+                                 [this]() { return label(); });
     FCITX_OBJECT_VTABLE_PROPERTY(XAyatanaLabelGuide, "XAyatanaLabelGuide", "s",
-                                 []() { return ""; });
+                                 [this]() { return label(); });
     FCITX_OBJECT_VTABLE_PROPERTY(xayatanaLabelOrderingIndex,
                                  "XAyatanaOrderingIndex", "u",
                                  []() { return 0; });
@@ -117,6 +126,7 @@ public:
 private:
     NotificationItem *parent_;
     int deltaAcc_ = 0;
+    const bool inFlatpak_ = fs::isreg("/.flatpak-info");
 };
 
 NotificationItem::NotificationItem(Instance *instance)
@@ -124,27 +134,20 @@ NotificationItem::NotificationItem(Instance *instance)
       watcher_(std::make_unique<dbus::ServiceWatcher>(*bus_)),
       sni_(std::make_unique<StatusNotifierItem>(this)),
       menu_(std::make_unique<DBusMenu>(this)) {
-    bus_->addObjectVTable(NOTIFICATION_ITEM_DEFAULT_OBJ,
-                          NOTIFICATION_ITEM_DBUS_IFACE, *sni_);
+    reloadConfig();
     watcherEntry_ = watcher_->watchService(
         NOTIFICATION_WATCHER_DBUS_ADDR,
         [this](const std::string &, const std::string &,
                const std::string &newName) { setSerivceName(newName); });
-
-    eventHandlers_.emplace_back(instance_->watchEvent(
-        EventType::InputContextFocusIn, EventWatcherPhase::Default,
-        [this](Event &) { sni_->newIcon(); }));
-    eventHandlers_.emplace_back(instance_->watchEvent(
-        EventType::InputContextSwitchInputMethod, EventWatcherPhase::Default,
-        [this](Event &) { sni_->newIcon(); }));
-    eventHandlers_.emplace_back(instance_->watchEvent(
-        EventType::InputMethodGroupChanged, EventWatcherPhase::Default,
-        [this](Event &) { sni_->newIcon(); }));
 }
 
 NotificationItem::~NotificationItem() = default;
 
 dbus::Bus *NotificationItem::bus() { return dbus()->call<IDBusModule::bus>(); }
+
+void NotificationItem::reloadConfig() {
+    readAsIni(config_, "conf/notificationitem.conf");
+}
 
 void NotificationItem::setSerivceName(const std::string &newName) {
     sniWatcherName_ = newName;
@@ -188,6 +191,10 @@ void NotificationItem::enable() {
     if (enabled_) {
         return;
     }
+    // Ensure we are released.
+    sni_->releaseSlot();
+    bus_->addObjectVTable(NOTIFICATION_ITEM_DEFAULT_OBJ,
+                          NOTIFICATION_ITEM_DBUS_IFACE, *sni_);
 
     serviceName_ =
         fmt::format("org.kde.StatusNotifierItem-{0}-{1}", getpid(), ++index_);
@@ -196,6 +203,14 @@ void NotificationItem::enable() {
     }
     enabled_ = true;
     registerSNI();
+
+    auto updateIcon = [this](Event &) { newIcon(); };
+    for (auto type : {EventType::InputContextFocusIn,
+                      EventType::InputContextSwitchInputMethod,
+                      EventType::InputMethodGroupChanged}) {
+        eventHandlers_.emplace_back(instance_->watchEvent(
+            type, EventWatcherPhase::Default, updateIcon));
+    }
 }
 
 void NotificationItem::disable() {
@@ -204,13 +219,24 @@ void NotificationItem::disable() {
     }
 
     bus_->releaseName(serviceName_);
+    sni_->releaseSlot();
 
     enabled_ = false;
+    eventHandlers_.clear();
 }
 
 std::unique_ptr<HandlerTableEntry<NotificationItemCallback>>
 NotificationItem::watch(NotificationItemCallback callback) {
-    return handlers_.add(callback);
+    return handlers_.add(std::move(callback));
+}
+
+void NotificationItem::newIcon() {
+    // Make sure we only call it when it is registered.
+    if (!sni_->isRegistered()) {
+        return;
+    }
+    sni_->newIcon();
+    sni_->xayatanaNewLabel(sni_->label(), sni_->label());
 }
 
 class NotificationItemFactory : public AddonFactory {

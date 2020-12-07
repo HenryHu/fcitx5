@@ -1,10 +1,9 @@
 #ifndef WL_SHELL
 #define WL_SHELL
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlShellSurface;
 class WlSurface;
 class WlShell final {
@@ -27,11 +26,10 @@ private:
     static void destructor(wl_shell *);
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_shell, decltype(&destructor)> data_;
+    UniqueCPtr<wl_shell, &destructor> data_;
 };
 static inline wl_shell *rawPointer(WlShell *p) {
     return p ? static_cast<wl_shell *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

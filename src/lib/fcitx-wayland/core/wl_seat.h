@@ -1,10 +1,9 @@
 #ifndef WL_SEAT
 #define WL_SEAT
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlKeyboard;
 class WlPointer;
 class WlTouch;
@@ -34,11 +33,10 @@ private:
     fcitx::Signal<void(const char *)> nameSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_seat, decltype(&destructor)> data_;
+    UniqueCPtr<wl_seat, &destructor> data_;
 };
 static inline wl_seat *rawPointer(WlSeat *p) {
     return p ? static_cast<wl_seat *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

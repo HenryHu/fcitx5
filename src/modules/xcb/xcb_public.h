@@ -1,30 +1,18 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_XCB_XCB_PUBLIC_H_
 #define _FCITX_MODULES_XCB_XCB_PUBLIC_H_
 
+#include <string>
+#include <tuple>
 #include <fcitx-utils/handlertable.h>
 #include <fcitx-utils/metastring.h>
 #include <fcitx/addoninstance.h>
 #include <fcitx/focusgroup.h>
-#include <string>
-#include <tuple>
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
@@ -42,14 +30,6 @@ typedef std::function<void(const std::string &name, xcb_connection_t *conn)>
 typedef std::function<void(xcb_atom_t selection)> XCBSelectionNotifyCallback;
 typedef std::function<void(xcb_atom_t, const char *, size_t)>
     XCBConvertSelectionCallback;
-
-template <typename T>
-using XCBReply = std::unique_ptr<T, decltype(&std::free)>;
-
-template <typename T>
-static XCBReply<T> makeXCBReply(T *ptr) noexcept {
-    return {ptr, &std::free};
-}
 } // namespace fcitx
 FCITX_ADDON_DECLARE_FUNCTION(XCBModule, openConnection,
                              void(const std::string &));
@@ -82,5 +62,7 @@ FCITX_ADDON_DECLARE_FUNCTION(XCBModule, convertSelection,
                                  const std::string &, const std::string &,
                                  const std::string &,
                                  XCBConvertSelectionCallback));
+
+FCITX_ADDON_DECLARE_FUNCTION(XCBModule, mainDisplay, std::string());
 
 #endif // _FCITX_MODULES_XCB_XCB_PUBLIC_H_

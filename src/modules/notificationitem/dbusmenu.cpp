@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "dbusmenu.h"
 #include "fcitx-utils/log.h"
 #include "fcitx/action.h"
@@ -44,9 +32,7 @@ enum BuiltInIndex {
     BII_InputMethod,
     BII_Separator1,
     BII_Separator2,
-    BII_ConfigureCurrent,
     BII_Configure,
-    BII_Separator3,
     BII_Restart,
     BII_Exit,
     BII_NormalEnd = 99,
@@ -90,9 +76,6 @@ void DBusMenu::handleEvent(int32_t id) {
     auto &imManager = parent_->instance()->inputMethodManager();
     if (id <= BII_NormalEnd) {
         switch (id) {
-        case BII_ConfigureCurrent:
-            // TODO Configure current.
-            break;
         case BII_Configure:
             parent_->instance()->configure();
             break;
@@ -109,7 +92,7 @@ void DBusMenu::handleEvent(int32_t id) {
         if (idx >= list.size()) {
             return;
         }
-        auto entry = imManager.entry(list[idx].name());
+        const auto *entry = imManager.entry(list[idx].name());
         if (!entry) {
             return;
         }
@@ -126,10 +109,10 @@ void DBusMenu::handleEvent(int32_t id) {
     } else {
         // Remove prefix.
         id -= builtInIds;
-        if (auto ic = lastRelevantIc()) {
-            if (auto action = parent_->instance()
-                                  ->userInterfaceManager()
-                                  .lookupActionById(id)) {
+        if (auto *ic = lastRelevantIc()) {
+            if (auto *action = parent_->instance()
+                                   ->userInterfaceManager()
+                                   .lookupActionById(id)) {
                 action->activate(ic);
             }
         }
@@ -146,11 +129,11 @@ void DBusMenu::appendSubItem(
 void DBusMenu::appendProperty(
     DBusMenuProperties &properties,
     const std::unordered_set<std::string> &propertyNames,
-    const std::string &name, dbus::Variant variant) {
-    if (propertyNames.size() && !propertyNames.count(name)) {
+    const std::string &name, const dbus::Variant &variant) {
+    if (!propertyNames.empty() && !propertyNames.count(name)) {
         return;
     }
-    properties.emplace_back(name, std::move(variant));
+    properties.emplace_back(name, variant);
 }
 
 void DBusMenu::fillLayoutItem(
@@ -187,9 +170,9 @@ void DBusMenu::fillLayoutItem(
         // Separator
         appendSubItem(subLayoutItems, BII_Separator1, depth, propertyNames);
         bool hasAction = false;
-        if (auto ic = lastRelevantIc()) {
+        if (auto *ic = lastRelevantIc()) {
             auto &statusArea = ic->statusArea();
-            for (auto action : statusArea.allActions()) {
+            for (auto *action : statusArea.allActions()) {
                 if (!action->id()) {
                     // Obviously it's not registered with ui manager.
                     continue;
@@ -202,10 +185,7 @@ void DBusMenu::fillLayoutItem(
         if (hasAction) {
             appendSubItem(subLayoutItems, BII_Separator2, depth, propertyNames);
         }
-        appendSubItem(subLayoutItems, BII_ConfigureCurrent, depth,
-                      propertyNames);
         appendSubItem(subLayoutItems, BII_Configure, depth, propertyNames);
-        appendSubItem(subLayoutItems, BII_Separator3, depth, propertyNames);
         appendSubItem(subLayoutItems, BII_Restart, depth, propertyNames);
         appendSubItem(subLayoutItems, BII_Exit, depth, propertyNames);
     } else if (id == BII_InputMethodGroup) {
@@ -224,11 +204,11 @@ void DBusMenu::fillLayoutItem(
         }
     } else if (id > builtInIds) {
         id -= builtInIds;
-        if (auto action =
+        if (auto *action =
                 parent_->instance()->userInterfaceManager().lookupActionById(
                     id)) {
-            if (auto menu = action->menu()) {
-                for (auto menuAction : menu->actions()) {
+            if (auto *menu = action->menu()) {
+                for (auto *menuAction : menu->actions()) {
                     if (!menuAction->id()) {
                         // Obviously it's not registered with ui manager.
                         continue;
@@ -268,13 +248,8 @@ void DBusMenu::fillLayoutProperties(
             break;
         case BII_Separator1:
         case BII_Separator2:
-        case BII_Separator3:
             appendProperty(properties, propertyNames, "type",
                            dbus::Variant("separator"));
-            break;
-        case BII_ConfigureCurrent:
-            appendProperty(properties, propertyNames, "label",
-                           dbus::Variant(_("Configure Current Input Method")));
             break;
         case BII_Configure:
             /* this icon sucks on KDE, why configure doesn't have "configure" */
@@ -303,7 +278,7 @@ void DBusMenu::fillLayoutProperties(
         if (idx >= list.size()) {
             return;
         }
-        auto entry = imManager.entry(list[idx].name());
+        const auto *entry = imManager.entry(list[idx].name());
         if (!entry) {
             return;
         }
@@ -311,10 +286,10 @@ void DBusMenu::fillLayoutProperties(
                        dbus::Variant(entry->name()));
         if (!entry->icon().empty()) {
             appendProperty(properties, propertyNames, "icon-name",
-                           dbus::Variant(entry->icon()));
+                           dbus::Variant(iconName(entry->icon())));
         }
 
-        if (auto ic = lastRelevantIc()) {
+        if (auto *ic = lastRelevantIc()) {
             appendProperty(properties, propertyNames, "toggle-type",
                            dbus::Variant("radio"));
             // We can use pointer comparision here.
@@ -341,14 +316,14 @@ void DBusMenu::fillLayoutProperties(
                                                                        : 0));
     } else {
         id -= builtInIds;
-        if (auto ic = lastRelevantIc()) {
-            if (auto action = parent_->instance()
-                                  ->userInterfaceManager()
-                                  .lookupActionById(id)) {
+        if (auto *ic = lastRelevantIc()) {
+            if (auto *action = parent_->instance()
+                                   ->userInterfaceManager()
+                                   .lookupActionById(id)) {
                 appendProperty(properties, propertyNames, "label",
                                dbus::Variant(action->shortText(ic)));
                 appendProperty(properties, propertyNames, "icon-name",
-                               dbus::Variant(action->icon(ic)));
+                               dbus::Variant(iconName(action->icon(ic))));
                 if (action->isCheckable()) {
                     appendProperty(properties, propertyNames, "toggle-type",
                                    dbus::Variant("radio"));
@@ -392,7 +367,7 @@ DBusMenu::getLayout(int parentId, int recursionDepth,
 }
 
 InputContext *DBusMenu::lastRelevantIc() {
-    if (auto ic = lastRelevantIc_.get()) {
+    if (auto *ic = lastRelevantIc_.get()) {
         return ic;
     }
     return parent_->instance()->mostRecentInputContext();
@@ -400,16 +375,13 @@ InputContext *DBusMenu::lastRelevantIc() {
 
 bool DBusMenu::aboutToShow(int32_t id) {
     if (id == 0) {
-        if (auto ic = parent_->instance()->mostRecentInputContext()) {
+        if (auto *ic = parent_->instance()->mostRecentInputContext()) {
             lastRelevantIc_ = ic->watch();
         }
         requestedMenus_.clear();
         return true;
     }
-    if (requestedMenus_.count(id)) {
-        return false;
-    }
-    return true;
+    return requestedMenus_.count(id) == 0;
 }
 
 } // namespace fcitx

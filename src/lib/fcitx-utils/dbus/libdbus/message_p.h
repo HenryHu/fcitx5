@@ -1,26 +1,16 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_DBUS_MESSAGE_P_H_
 #define _FCITX_UTILS_DBUS_MESSAGE_P_H_
 
-#include "../message.h"
 #include <dbus/dbus.h>
+
+#include <utility>
+#include "../message.h"
 
 namespace fcitx {
 namespace dbus {
@@ -37,7 +27,7 @@ public:
     static Message fromDBusMessage(TrackableObjectReference<BusPrivate> bus,
                                    DBusMessage *dmsg, bool write, bool ref) {
         Message message;
-        message.d_ptr->bus_ = bus;
+        message.d_ptr->bus_ = std::move(bus);
         message.d_ptr->msg_ = ref ? dbus_message_ref(dmsg) : dmsg;
         message.d_ptr->write_ = write;
         message.d_ptr->initIterator();
@@ -66,7 +56,7 @@ public:
 
     static Message fromDBusError(const DBusError &error) {
         Message msg;
-        auto msgD = msg.d_func();
+        auto *msgD = msg.d_func();
         msgD->type_ = MessageType::Error;
         msgD->error_ = error.name;
         msgD->message_ = error.message;
@@ -98,7 +88,7 @@ public:
     DBusMessageIter *pushReadIterator() {
         DBusMessageIter *iter = iterator();
         iterators_.emplace_back();
-        auto subIter = iterator();
+        auto *subIter = iterator();
         dbus_message_iter_recurse(iter, subIter);
         return subIter;
     }
@@ -106,7 +96,7 @@ public:
     DBusMessageIter *pushWriteIterator(int type, const std::string &subType) {
         DBusMessageIter *iter = iterator();
         iterators_.emplace_back();
-        auto subIter = iterator();
+        auto *subIter = iterator();
         dbus_message_iter_open_container(
             iter, type,
             ((type == DBUS_TYPE_STRUCT || type == DBUS_TYPE_DICT_ENTRY)

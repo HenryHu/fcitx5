@@ -1,29 +1,16 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_HANDLERTABLE_H_
 #define _FCITX_UTILS_HANDLERTABLE_H_
 
-#include <exception>
-#include <fcitx-utils/handlertable_details.h>
-#include <fcitx-utils/intrusivelist.h>
 #include <functional>
 #include <unordered_map>
+#include <fcitx-utils/handlertable_details.h>
+#include <fcitx-utils/intrusivelist.h>
 
 namespace fcitx {
 
@@ -40,7 +27,7 @@ public:
     FCITX_INLINE_DEFINE_DEFAULT_DTOR_AND_MOVE(HandlerTable)
 
     template <typename... Args>
-    FCITX_NODISCARD std::unique_ptr<HandlerTableEntry<T>> add(Args &&... args) {
+    FCITX_NODISCARD std::unique_ptr<HandlerTableEntry<T>> add(Args &&...args) {
         auto result = std::make_unique<ListHandlerTableEntry<T>>(
             std::forward<Args>(args)...);
         handlers_.push_back(*result);
@@ -50,6 +37,7 @@ public:
     HandlerTableView<T> view() { return {handlers_.begin(), handlers_.end()}; }
 
     size_t size() const { return handlers_.size(); }
+    bool empty() const { return size() == 0; }
 
 private:
     IntrusiveListFor<ListHandlerTableEntry<T>> handlers_;
@@ -67,7 +55,7 @@ public:
                       std::function<void(const Key &)> removeKey = {})
         : addKey_(addKey), removeKey_(removeKey) {}
 
-    FCITX_INLINE_DEFINE_DEFAULT_DTOR_AND_MOVE_WITHOUT_SPEC(MultiHandlerTable)
+    FCITX_INLINE_DEFINE_DEFAULT_DTOR_AND_MOVE(MultiHandlerTable)
 
     template <typename M>
     FCITX_NODISCARD std::unique_ptr<HandlerTableEntry<T>> add(const Key &key,

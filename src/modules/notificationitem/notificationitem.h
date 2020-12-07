@@ -1,33 +1,30 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_NOTIFICATIONITEM_NOTIFICATIONITEM_H_
 #define _FCITX_MODULES_NOTIFICATIONITEM_NOTIFICATIONITEM_H_
 
-#include "dbus_public.h"
+#include <memory>
+#include <fcitx/addonmanager.h>
+#include "fcitx-config/configuration.h"
+#include "fcitx-config/iniparser.h"
 #include "fcitx-utils/dbus/servicewatcher.h"
+#include "fcitx-utils/i18n.h"
 #include "fcitx/addoninstance.h"
 #include "fcitx/instance.h"
+#include "dbus_public.h"
 #include "notificationitem_public.h"
-#include <fcitx/addonmanager.h>
-#include <memory>
 
 namespace fcitx {
+
+FCITX_CONFIGURATION(StatusNotifierItemConfig,
+                    fcitx::Option<bool> showLabel{
+                        this, "Show Label",
+                        _("Show label when using keyboard or icon unavailable"),
+                        false};);
 
 class StatusNotifierItem;
 class DBusMenu;
@@ -39,15 +36,25 @@ public:
 
     dbus::Bus *bus();
     Instance *instance() { return instance_; }
+    const auto &config() { return config_; }
+
+    const Configuration *getConfig() const override { return &config_; }
+    void setConfig(const RawConfig &config) override {
+        config_.load(config, true);
+        safeSaveAsIni(config_, "conf/notificationitem.conf");
+    }
+
+    void reloadConfig() override;
 
     void setSerivceName(const std::string &newName);
     void setRegistered(bool);
     void registerSNI();
     void enable();
     void disable();
-    bool registered() { return registered_; }
+    bool registered() const { return registered_; }
     std::unique_ptr<HandlerTableEntry<NotificationItemCallback>>
-        watch(NotificationItemCallback);
+    watch(NotificationItemCallback callback);
+    void newIcon();
 
 private:
     FCITX_ADDON_DEPENDENCY_LOADER(dbus, instance_->addonManager());
@@ -55,6 +62,7 @@ private:
     FCITX_ADDON_EXPORT_FUNCTION(NotificationItem, disable);
     FCITX_ADDON_EXPORT_FUNCTION(NotificationItem, watch);
     FCITX_ADDON_EXPORT_FUNCTION(NotificationItem, registered);
+    StatusNotifierItemConfig config_;
     Instance *instance_;
     dbus::Bus *bus_;
     std::unique_ptr<dbus::ServiceWatcher> watcher_;

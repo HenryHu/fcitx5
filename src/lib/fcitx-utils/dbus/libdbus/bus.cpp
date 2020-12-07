@@ -1,46 +1,35 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
+#include "config.h"
 
+#include <unistd.h>
+#include <stdexcept>
+#include <utility>
 #include "../../charutils.h"
 #include "../../log.h"
 #include "../../stringutils.h"
 #include "bus_p.h"
-#include "config.h"
 #include "message_p.h"
 #include "objectvtable_p_libdbus.h"
-#include <unistd.h>
 
-namespace fcitx {
-namespace dbus {
+namespace fcitx::dbus {
 
 FCITX_DEFINE_LOG_CATEGORY(libdbus_logcategory, "libdbus");
 
 DBusHandlerResult DBusMessageCallback(DBusConnection *, DBusMessage *message,
                                       void *userdata) {
-    auto bus = static_cast<BusPrivate *>(userdata);
+    auto *bus = static_cast<BusPrivate *>(userdata);
     if (!bus) {
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
     try {
         auto ref = bus->watch();
         auto msg = MessagePrivate::fromDBusMessage(ref, message, false, true);
-        for (auto filter : bus->filterHandlers_.view()) {
+        for (const auto &filter : bus->filterHandlers_.view()) {
             if (filter && filter(msg)) {
                 return DBUS_HANDLER_RESULT_HANDLED;
             }
@@ -48,9 +37,9 @@ DBusHandlerResult DBusMessageCallback(DBusConnection *, DBusMessage *message,
         }
 
         if (msg.type() == MessageType::Signal) {
-            if (auto bus = ref.get()) {
+            if (auto *bus = ref.get()) {
                 for (auto &pair : bus->matchHandlers_.view()) {
-                    auto bus = ref.get();
+                    auto *bus = ref.get();
                     std::string alterName;
                     if (bus && bus->nameCache_ &&
                         !pair.first.service().empty()) {
@@ -68,7 +57,7 @@ DBusHandlerResult DBusMessageCallback(DBusConnection *, DBusMessage *message,
         }
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -113,7 +102,7 @@ constexpr const char xmlInterfaceFooter[] = "</interface>";
 
 constexpr const char xmlFooter[] = "</node>";
 
-std::string DBusObjectVTableSlot::getXml() {
+std::string DBusObjectVTableSlot::getXml() const {
     std::string xml;
     xml += stringutils::concat("<interface name=\"", interface_, "\">");
     xml += objPriv_->getXml(obj_);
@@ -122,10 +111,10 @@ std::string DBusObjectVTableSlot::getXml() {
 }
 
 DBusObjectVTableSlot *BusPrivate::findSlot(const std::string &path,
-                                           const std::string interface) {
+                                           const std::string &interface) {
     // Check if interface exists.
     for (auto &item : objectRegistration_.view(path)) {
-        if (auto slot = item.get()) {
+        if (auto *slot = item.get()) {
             if (slot->interface_ == interface) {
                 return slot;
             }
@@ -139,15 +128,15 @@ bool BusPrivate::objectVTableCallback(Message &message) {
         return false;
     }
     if (message.interface() == "org.freedesktop.DBus.Introspectable") {
-        if (message.member() != "Introspect" || message.signature() != "") {
+        if (message.member() != "Introspect" || !message.signature().empty()) {
             return false;
         }
         std::string xml = xmlHeader;
         bool hasProperties = false;
         for (auto &item : objectRegistration_.view(message.path())) {
-            if (auto slot = item.get()) {
+            if (auto *slot = item.get()) {
                 hasProperties =
-                    hasProperties || slot->objPriv_->properties_.size();
+                    hasProperties || !slot->objPriv_->properties_.empty();
                 xml += slot->xml_;
             }
         }
@@ -159,12 +148,13 @@ bool BusPrivate::objectVTableCallback(Message &message) {
         reply << xml;
         reply.send();
         return true;
-    } else if (message.interface() == "org.freedesktop.DBus.Properties") {
+    }
+    if (message.interface() == "org.freedesktop.DBus.Properties") {
         if (message.member() == "Get" && message.signature() == "ss") {
             std::string interfaceName, propertyName;
             message >> interfaceName >> propertyName;
-            if (auto slot = findSlot(message.path(), interfaceName)) {
-                auto property = slot->obj_->findProperty(propertyName);
+            if (auto *slot = findSlot(message.path(), interfaceName)) {
+                auto *property = slot->obj_->findProperty(propertyName);
                 if (property) {
                     auto reply = message.createReply();
                     reply << Container(Container::Type::Variant,
@@ -182,8 +172,8 @@ bool BusPrivate::objectVTableCallback(Message &message) {
         } else if (message.member() == "Set" && message.signature() == "ssv") {
             std::string interfaceName, propertyName;
             message >> interfaceName >> propertyName;
-            if (auto slot = findSlot(message.path(), interfaceName)) {
-                auto property = slot->obj_->findProperty(propertyName);
+            if (auto *slot = findSlot(message.path(), interfaceName)) {
+                auto *property = slot->obj_->findProperty(propertyName);
                 if (property) {
                     if (property->writable()) {
                         message >> Container(Container::Type::Variant,
@@ -212,7 +202,7 @@ bool BusPrivate::objectVTableCallback(Message &message) {
         } else if (message.member() == "GetAll" && message.signature() == "s") {
             std::string interfaceName;
             message >> interfaceName;
-            if (auto slot = findSlot(message.path(), interfaceName)) {
+            if (auto *slot = findSlot(message.path(), interfaceName)) {
                 auto reply = message.createReply();
                 reply << Container(Container::Type::Array, Signature("{sv}"));
                 for (auto &pair : slot->objPriv_->properties_) {
@@ -222,7 +212,7 @@ bool BusPrivate::objectVTableCallback(Message &message) {
                     reply << Container(Container::Type::DictEntry,
                                        Signature("sv"));
                     reply << pair.first;
-                    auto property = pair.second;
+                    auto *property = pair.second;
                     reply << Container(Container::Type::Variant,
                                        property->signature());
                     property->getMethod()(reply);
@@ -234,8 +224,8 @@ bool BusPrivate::objectVTableCallback(Message &message) {
                 return true;
             }
         }
-    } else if (auto slot = findSlot(message.path(), message.interface())) {
-        if (auto method = slot->obj_->findMethod(message.member())) {
+    } else if (auto *slot = findSlot(message.path(), message.interface())) {
+        if (auto *method = slot->obj_->findMethod(message.member())) {
             if (method->signature() != message.signature()) {
                 return false;
             }
@@ -265,11 +255,11 @@ std::string escapePath(const std::string &path) {
 }
 
 std::string sessionBusAddress() {
-    auto e = getenv("DBUS_SESSION_BUS_ADDRESS");
+    auto *e = getenv("DBUS_SESSION_BUS_ADDRESS");
     if (e) {
         return e;
     }
-    auto xdg = getenv("XDG_RUNTIME_DIR");
+    auto *xdg = getenv("XDG_RUNTIME_DIR");
     if (!xdg) {
         return {};
     }
@@ -291,8 +281,9 @@ std::string addressByType(BusType type) {
         if (char *starter = getenv("DBUS_STARTER_BUS_TYPE")) {
             if (strcmp(starter, "system") == 0) {
                 return addressByType(BusType::System);
-            } else if (strcmp(starter, "user") == 0 ||
-                       strcmp(starter, "session") == 0) {
+            }
+            if (strcmp(starter, "user") == 0 ||
+                strcmp(starter, "session") == 0) {
                 return addressByType(BusType::Session);
             }
         }
@@ -320,26 +311,24 @@ Bus::Bus(const std::string &address)
         goto fail;
     }
     d->address_ = address;
-    d->conn_ = dbus_connection_open_private(address.c_str(), nullptr);
+    d->conn_.reset(dbus_connection_open_private(address.c_str(), nullptr));
     if (!d->conn_) {
         goto fail;
     }
 
-    if (!dbus_bus_register(d->conn_, nullptr)) {
+    dbus_connection_set_exit_on_disconnect(d->conn_.get(), false);
+
+    if (!dbus_bus_register(d->conn_.get(), nullptr)) {
         goto fail;
     }
-    if (!dbus_connection_add_filter(d->conn_, DBusMessageCallback, d,
+    if (!dbus_connection_add_filter(d->conn_.get(), DBusMessageCallback, d,
                                     nullptr)) {
         goto fail;
     }
     return;
 
 fail:
-    if (d->conn_) {
-        dbus_connection_close(d->conn_);
-        dbus_connection_unref(d->conn_);
-    }
-    d->conn_ = nullptr;
+    throw std::runtime_error("Failed to create dbus connection");
 }
 
 Bus::~Bus() {
@@ -353,13 +342,13 @@ Bus::Bus(Bus &&other) noexcept : d_ptr(std::move(other.d_ptr)) {}
 
 bool Bus::isOpen() const {
     FCITX_D();
-    return d->conn_ && dbus_connection_get_is_connected(d->conn_);
+    return d->conn_ && dbus_connection_get_is_connected(d->conn_.get());
 }
 
 Message Bus::createMethodCall(const char *destination, const char *path,
                               const char *interface, const char *member) {
     FCITX_D();
-    auto dmsg =
+    auto *dmsg =
         dbus_message_new_method_call(destination, path, interface, member);
     if (!dmsg) {
         return {};
@@ -370,7 +359,7 @@ Message Bus::createMethodCall(const char *destination, const char *path,
 Message Bus::createSignal(const char *path, const char *interface,
                           const char *member) {
     FCITX_D();
-    auto dmsg = dbus_message_new_signal(path, interface, member);
+    auto *dmsg = dbus_message_new_signal(path, interface, member);
     if (!dmsg) {
         return {};
     }
@@ -378,7 +367,7 @@ Message Bus::createSignal(const char *path, const char *interface,
 }
 
 void DBusToggleWatch(DBusWatch *watch, void *data) {
-    auto bus = static_cast<BusPrivate *>(data);
+    auto *bus = static_cast<BusPrivate *>(data);
     auto iter = bus->ioWatchers_.find(watch);
     if (iter != bus->ioWatchers_.end()) {
         iter->second->setEnabled(dbus_watch_get_enabled(watch));
@@ -396,7 +385,7 @@ void DBusToggleWatch(DBusWatch *watch, void *data) {
 }
 
 dbus_bool_t DBusAddWatch(DBusWatch *watch, void *data) {
-    auto bus = static_cast<BusPrivate *>(data);
+    auto *bus = static_cast<BusPrivate *>(data);
     int dflags = dbus_watch_get_flags(watch);
     int fd = dbus_watch_get_unix_fd(watch);
     IOEventFlags flags;
@@ -415,7 +404,7 @@ dbus_bool_t DBusAddWatch(DBusWatch *watch, void *data) {
                            if (!dbus_watch_get_enabled(watch)) {
                                return true;
                            }
-                           auto refPivot = ref;
+                           const auto &refPivot = ref;
                            int dflags = 0;
 
                            if (flags & IOEventFlag::In) {
@@ -431,7 +420,7 @@ dbus_bool_t DBusAddWatch(DBusWatch *watch, void *data) {
                                dflags |= DBUS_WATCH_HANGUP;
                            }
                            dbus_watch_handle(watch, dflags);
-                           if (auto bus = refPivot.get()) {
+                           if (auto *bus = refPivot.get()) {
                                bus->dispatch();
                            }
                            return true;
@@ -444,12 +433,12 @@ dbus_bool_t DBusAddWatch(DBusWatch *watch, void *data) {
 }
 
 void DBusRemoveWatch(DBusWatch *watch, void *data) {
-    auto bus = static_cast<BusPrivate *>(data);
+    auto *bus = static_cast<BusPrivate *>(data);
     bus->ioWatchers_.erase(watch);
 }
 
 dbus_bool_t DBusAddTimeout(DBusTimeout *timeout, void *data) {
-    auto bus = static_cast<BusPrivate *>(data);
+    auto *bus = static_cast<BusPrivate *>(data);
     if (!dbus_timeout_get_enabled(timeout)) {
         return false;
     }
@@ -462,7 +451,7 @@ dbus_bool_t DBusAddTimeout(DBusTimeout *timeout, void *data) {
             bus->loop_->addTimeEvent(
                 CLOCK_MONOTONIC, now(CLOCK_MONOTONIC) + interval * 1000ull, 0,
                 [timeout, ref](EventSourceTime *event, uint64_t) {
-                    auto refPivot = ref;
+                    const auto &refPivot = ref;
                     if (dbus_timeout_get_enabled(timeout)) {
                         event->setNextInterval(
                             dbus_timeout_get_interval(timeout) * 1000ull);
@@ -470,7 +459,7 @@ dbus_bool_t DBusAddTimeout(DBusTimeout *timeout, void *data) {
                     }
                     dbus_timeout_handle(timeout);
 
-                    if (auto bus = refPivot.get()) {
+                    if (auto *bus = refPivot.get()) {
                         bus->dispatch();
                     }
                     return true;
@@ -481,7 +470,7 @@ dbus_bool_t DBusAddTimeout(DBusTimeout *timeout, void *data) {
     return true;
 }
 void DBusRemoveTimeout(DBusTimeout *timeout, void *data) {
-    auto bus = static_cast<BusPrivate *>(data);
+    auto *bus = static_cast<BusPrivate *>(data);
     bus->timeWatchers_.erase(timeout);
 }
 
@@ -492,7 +481,7 @@ void DBusToggleTimeout(DBusTimeout *timeout, void *data) {
 
 void DBusDispatchStatusCallback(DBusConnection *, DBusDispatchStatus status,
                                 void *userdata) {
-    auto bus = static_cast<BusPrivate *>(userdata);
+    auto *bus = static_cast<BusPrivate *>(userdata);
     if (status == DBUS_DISPATCH_DATA_REMAINS) {
         bus->deferEvent_->setOneShot();
     }
@@ -505,14 +494,14 @@ void Bus::attachEventLoop(EventLoop *loop) {
     }
     d->loop_ = loop;
     do {
-        if (!dbus_connection_set_watch_functions(d->conn_, DBusAddWatch,
+        if (!dbus_connection_set_watch_functions(d->conn_.get(), DBusAddWatch,
                                                  DBusRemoveWatch,
                                                  DBusToggleWatch, d, nullptr)) {
             break;
         }
         if (!dbus_connection_set_timeout_functions(
-                d->conn_, DBusAddTimeout, DBusRemoveTimeout, DBusToggleTimeout,
-                d, nullptr)) {
+                d->conn_.get(), DBusAddTimeout, DBusRemoveTimeout,
+                DBusToggleTimeout, d, nullptr)) {
             break;
         }
         if (!d->deferEvent_) {
@@ -523,7 +512,7 @@ void Bus::attachEventLoop(EventLoop *loop) {
             d->deferEvent_->setOneShot();
         }
         dbus_connection_set_dispatch_status_function(
-            d->conn_, DBusDispatchStatusCallback, d, nullptr);
+            d->conn_.get(), DBusDispatchStatusCallback, d, nullptr);
         d->attached_ = true;
         return;
     } while (0);
@@ -533,18 +522,19 @@ void Bus::attachEventLoop(EventLoop *loop) {
 
 void Bus::detachEventLoop() {
     FCITX_D();
-    dbus_connection_set_watch_functions(d->conn_, nullptr, nullptr, nullptr,
-                                        nullptr, nullptr);
-    dbus_connection_set_timeout_functions(d->conn_, nullptr, nullptr, nullptr,
-                                          nullptr, nullptr);
-    dbus_connection_set_dispatch_status_function(d->conn_, nullptr, nullptr,
-                                                 nullptr);
+    dbus_connection_set_watch_functions(d->conn_.get(), nullptr, nullptr,
+                                        nullptr, nullptr, nullptr);
+    dbus_connection_set_timeout_functions(d->conn_.get(), nullptr, nullptr,
+                                          nullptr, nullptr, nullptr);
+    dbus_connection_set_dispatch_status_function(d->conn_.get(), nullptr,
+                                                 nullptr, nullptr);
     d->deferEvent_.reset();
     d->loop_ = nullptr;
     d->attached_ = false;
 }
 
-std::unique_ptr<Slot> Bus::addMatch(MatchRule rule, MessageCallback callback) {
+std::unique_ptr<Slot> Bus::addMatch(const MatchRule &rule,
+                                    MessageCallback callback) {
     FCITX_D();
     auto slot = std::make_unique<DBusMatchSlot>();
 
@@ -556,8 +546,7 @@ std::unique_ptr<Slot> Bus::addMatch(MatchRule rule, MessageCallback callback) {
     if (!slot->ruleRef_) {
         return nullptr;
     }
-    slot->handler_ =
-        d->matchHandlers_.add(std::move(rule), std::move(callback));
+    slot->handler_ = d->matchHandlers_.add(rule, std::move(callback));
 
     return slot;
 }
@@ -573,7 +562,7 @@ std::unique_ptr<Slot> Bus::addFilter(MessageCallback callback) {
 DBusHandlerResult DBusObjectPathMessageCallback(DBusConnection *,
                                                 DBusMessage *message,
                                                 void *userdata) {
-    auto slot = static_cast<DBusObjectSlot *>(userdata);
+    auto *slot = static_cast<DBusObjectSlot *>(userdata);
     if (!slot) {
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
@@ -592,8 +581,8 @@ std::unique_ptr<Slot> Bus::addObject(const std::string &path,
     DBusObjectPathVTable vtable;
     memset(&vtable, 0, sizeof(vtable));
     vtable.message_function = DBusObjectPathMessageCallback;
-    if (dbus_connection_register_object_path(d->conn_, path.c_str(), &vtable,
-                                             slot.get())) {
+    if (dbus_connection_register_object_path(d->conn_.get(), path.c_str(),
+                                             &vtable, slot.get())) {
         return nullptr;
     }
 
@@ -604,7 +593,7 @@ std::unique_ptr<Slot> Bus::addObject(const std::string &path,
 DBusHandlerResult DBusObjectPathVTableMessageCallback(DBusConnection *,
                                                       DBusMessage *message,
                                                       void *userdata) {
-    auto bus = static_cast<BusPrivate *>(userdata);
+    auto *bus = static_cast<BusPrivate *>(userdata);
     if (!bus) {
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
@@ -621,7 +610,7 @@ bool Bus::addObjectVTable(const std::string &path, const std::string &interface,
     FCITX_D();
     // Check if interface exists.
     for (auto &item : d->objectRegistration_.view(path)) {
-        if (auto slot = item.get()) {
+        if (auto *slot = item.get()) {
             if (slot->interface_ == interface) {
                 return false;
             }
@@ -643,9 +632,11 @@ bool Bus::addObjectVTable(const std::string &path, const std::string &interface,
     return true;
 }
 
+const char *Bus::impl() { return "libdbus"; }
+
 void *Bus::nativeHandle() const {
     FCITX_D();
-    return d->conn_;
+    return d->conn_.get();
 }
 
 bool Bus::requestName(const std::string &name, Flags<RequestNameFlag> flags) {
@@ -658,12 +649,13 @@ bool Bus::requestName(const std::string &name, Flags<RequestNameFlag> flags) {
              ? DBUS_NAME_FLAG_ALLOW_REPLACEMENT
              : 0) |
         ((flags & RequestNameFlag::Queue) ? 0 : DBUS_NAME_FLAG_DO_NOT_QUEUE);
-    return dbus_bus_request_name(d->conn_, name.c_str(), d_flags, nullptr);
+    return dbus_bus_request_name(d->conn_.get(), name.c_str(), d_flags,
+                                 nullptr);
 }
 
 bool Bus::releaseName(const std::string &name) {
     FCITX_D();
-    return dbus_bus_release_name(d->conn_, name.c_str(), nullptr);
+    return dbus_bus_release_name(d->conn_.get(), name.c_str(), nullptr);
 }
 
 std::string Bus::serviceOwner(const std::string &name, uint64_t usec) {
@@ -686,12 +678,12 @@ std::unique_ptr<Slot> Bus::serviceOwnerAsync(const std::string &name,
     auto msg = createMethodCall("org.freedesktop.DBus", "/org/freedesktop/DBus",
                                 "org.freedesktop.DBus", "GetNameOwner");
     msg << name;
-    return msg.callAsync(usec, callback);
+    return msg.callAsync(usec, std::move(callback));
 }
 
 std::string Bus::uniqueName() {
     FCITX_D();
-    const char *name = dbus_bus_get_unique_name(d->conn_);
+    const char *name = dbus_bus_get_unique_name(d->conn_.get());
     if (!name) {
         return {};
     }
@@ -705,7 +697,6 @@ std::string Bus::address() {
 
 void Bus::flush() {
     FCITX_D();
-    dbus_connection_flush(d->conn_);
+    dbus_connection_flush(d->conn_.get());
 }
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus

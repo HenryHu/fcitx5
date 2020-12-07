@@ -1,35 +1,21 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
-#include "config.h"
-
-#include "fcitx-utils/dbus/bus.h"
-#include "fcitx-utils/utf8.h"
+#include <unistd.h>
 #include <iostream>
 #include <sys/signal.h>
-#include <unistd.h>
+#include "fcitx-utils/dbus/bus.h"
+#include "fcitx-utils/utf8.h"
 
 using namespace fcitx;
 using namespace fcitx::dbus;
 
 void usage(std::ostream &stream) {
-    stream << "Usage: fcitx-remote [OPTION]\n"
+    stream << "Usage: fcitx5-remote [OPTION]\n"
               "\t-c\t\tinactivate input method\n"
               "\t-o\t\tactivate input method\n"
               "\t-r\t\treload fcitx config\n"
@@ -37,10 +23,12 @@ void usage(std::ostream &stream) {
               "\t-e\t\tAsk fcitx to exit\n"
               "\t-a\t\tprint fcitx's dbus address\n"
               "\t-m <imname>\tprint corresponding addon name for im\n"
+              "\t-g <group>\tset current input method group\n"
+              "\t-q\t\tGet current input method group name\n"
               "\t-s <imname>\tswitch to the input method uniquely identified "
               "by <imname>\n"
               "\t[no option]\tdisplay fcitx state, 0 for close, 1 for "
-              "inactive, 2 for acitve\n"
+              "inactive, 2 for active\n"
               "\t-h\t\tdisplay this help and exit\n";
 }
 
@@ -52,7 +40,9 @@ enum {
     FCITX_DBUS_TOGGLE,
     FCITX_DBUS_GET_CURRENT_STATE,
     FCITX_DBUS_GET_IM_ADDON,
-    FCITX_DBUS_SET_CURRENT_IM
+    FCITX_DBUS_SET_CURRENT_IM,
+    FCITX_DBUS_SET_CURRENT_GROUP,
+    FCITX_DBUS_GET_CURRENT_GROUP,
 };
 
 int main(int argc, char *argv[]) {
@@ -66,7 +56,7 @@ int main(int argc, char *argv[]) {
     int ret = 1;
     int messageType = FCITX_DBUS_GET_CURRENT_STATE;
     std::string imname;
-    while ((c = getopt(argc, argv, "chortTeam:s:")) != -1) {
+    while ((c = getopt(argc, argv, "chortTeam:s:g:q")) != -1) {
         switch (c) {
         case 'o':
             messageType = FCITX_DBUS_ACTIVATE;
@@ -97,6 +87,15 @@ int main(int argc, char *argv[]) {
         case 's':
             messageType = FCITX_DBUS_SET_CURRENT_IM;
             imname = optarg;
+            break;
+
+        case 'g':
+            messageType = FCITX_DBUS_SET_CURRENT_GROUP;
+            imname = optarg;
+            break;
+
+        case 'q':
+            messageType = FCITX_DBUS_GET_CURRENT_GROUP;
             break;
 
         case 'a':
@@ -136,12 +135,14 @@ int main(int argc, char *argv[]) {
         CASE(GET_CURRENT_STATE, State);
         CASE(GET_IM_ADDON, AddonForIM);
         CASE(SET_CURRENT_IM, SetCurrentIM);
+        CASE(GET_CURRENT_GROUP, CurrentInputMethodGroup);
+        CASE(SET_CURRENT_GROUP, SwitchInputMethodGroup);
 
     default:
-        goto some_error;
+        return ret;
     };
     if (!message) {
-        goto some_error;
+        return ret;
     }
 
     if (messageType == FCITX_DBUS_GET_CURRENT_STATE) {
@@ -151,11 +152,11 @@ int main(int argc, char *argv[]) {
             reply >> result;
             std::cout << result << std::endl;
             return 0;
-        } else {
-            std::cerr << "Failed to get reply." << std::endl;
-            return 1;
         }
-    } else if (messageType == FCITX_DBUS_GET_IM_ADDON) {
+        std::cerr << "Failed to get reply." << std::endl;
+        return 1;
+    }
+    if (messageType == FCITX_DBUS_GET_IM_ADDON) {
         message << imname;
         auto reply = message.call(defaultTimeout);
         if (!reply.isError()) {
@@ -163,19 +164,32 @@ int main(int argc, char *argv[]) {
             reply >> result;
             std::cout << result << std::endl;
             return 0;
-        } else {
-            std::cerr << "Failed to get reply." << std::endl;
-            return 1;
         }
-    } else if (messageType == FCITX_DBUS_SET_CURRENT_IM) {
+        std::cerr << "Failed to get reply." << std::endl;
+        return 1;
+    }
+    if (messageType == FCITX_DBUS_SET_CURRENT_IM) {
         message << imname;
         auto reply = message.call(defaultTimeout);
         return reply.isError() ? 1 : 0;
-    } else {
+    }
+    if (messageType == FCITX_DBUS_SET_CURRENT_GROUP) {
+        message << imname;
         auto reply = message.call(defaultTimeout);
         return reply.isError() ? 1 : 0;
     }
+    if (messageType == FCITX_DBUS_GET_CURRENT_GROUP) {
+        auto reply = message.call(defaultTimeout);
+        if (!reply.isError()) {
+            std::string result;
+            reply >> result;
+            std::cout << result << std::endl;
+            return 0;
+        }
+        std::cerr << "Failed to get reply." << std::endl;
+        return 1;
+    }
 
-some_error:
-    return ret;
+    auto reply = message.call(defaultTimeout);
+    return reply.isError() ? 1 : 0;
 }

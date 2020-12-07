@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_CANDIDATELIST_H_
 #define _FCITX_CANDIDATELIST_H_
 
@@ -37,13 +25,25 @@ enum class CandidateLayoutHint { NotSet, Vertical, Horizontal };
 
 class CandidateWordPrivate;
 
+/// Base class of candidate word.
 class FCITXCORE_EXPORT CandidateWord {
 public:
     CandidateWord(Text text = {});
     virtual ~CandidateWord();
+    /**
+     * Called when candidate is selected by user.
+     *
+     * @param inputContext the associated input context for the candidate.
+     */
     virtual void select(InputContext *inputContext) const = 0;
 
     const Text &text() const;
+    /**
+     * Whether the candidate is only a place holder.
+     *
+     * If candidate is a place holder, it will not be displayed by UI, but it
+     * will still take one place in the candidate list.
+     */
     bool isPlaceHolder() const;
     bool hasCustomLabel() const;
     const Text &customLabel() const;
@@ -70,6 +70,8 @@ public:
     virtual int size() const = 0;
     virtual int cursorIndex() const = 0;
     virtual CandidateLayoutHint layoutHint() const = 0;
+
+    bool empty() const;
 
     PageableCandidateList *toPageable() const;
     BulkCandidateList *toBulk() const;
@@ -131,10 +133,17 @@ public:
     }
 
     template <typename CandidateWordType, typename... Args>
-    void append(Args &&... args) {
+    void append(Args &&...args) {
         append(
             std::make_unique<CandidateWordType>(std::forward<Args>(args)...));
     }
+};
+
+class FCITXCORE_EXPORT DisplayOnlyCandidateWord : public CandidateWord {
+public:
+    DisplayOnlyCandidateWord(Text text) : CandidateWord(std::move(text)) {}
+
+    void select(InputContext *) const override {}
 };
 
 class DisplayOnlyCandidateListPrivate;
@@ -144,7 +153,7 @@ public:
     DisplayOnlyCandidateList();
     ~DisplayOnlyCandidateList();
 
-    void setContent(std::vector<std::string> content);
+    void setContent(const std::vector<std::string> &content);
     void setContent(std::vector<Text> content);
     void setLayoutHint(CandidateLayoutHint hint);
     void setCursorIndex(int index);
@@ -163,7 +172,7 @@ private:
 
 class CommonCandidateListPrivate;
 
-enum CursorPositionAfterPaging { SameAsLast, DonotChange, ResetToFirst };
+enum class CursorPositionAfterPaging { SameAsLast, DonotChange, ResetToFirst };
 
 class FCITXCORE_EXPORT CommonCandidateList : public CandidateList,
                                              public PageableCandidateList,
@@ -176,6 +185,7 @@ public:
     void clear();
     void setSelectionKey(const KeyList &keyList);
     void setPageSize(int size);
+    int pageSize() const;
     void setLayoutHint(CandidateLayoutHint hint);
     void setGlobalCursorIndex(int index);
 

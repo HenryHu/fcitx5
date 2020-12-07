@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "inputpanel.h"
 
@@ -95,13 +83,13 @@ void InputPanel::reset() {
 
 bool InputPanel::empty() const {
     FCITX_D();
-    return d->preedit_.size() == 0 && d->clientPreedit_.size() == 0 &&
+    return d->preedit_.empty() && d->clientPreedit_.empty() &&
            (!d->candidate_ || d->candidate_->size() == 0) &&
-           d->auxUp_.size() == 0 && d->auxDown_.size() == 0;
+           d->auxUp_.empty() && d->auxDown_.empty();
 }
 
-CandidateList *InputPanel::candidateList() const {
+std::shared_ptr<CandidateList> InputPanel::candidateList() const {
     FCITX_D();
-    return d->candidate_.get();
+    return d->candidate_;
 }
 } // namespace fcitx

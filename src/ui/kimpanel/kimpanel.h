@@ -1,31 +1,21 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UI_KIMPANEL_KIMPANEL_H_
 #define _FCITX_UI_KIMPANEL_KIMPANEL_H_
 
 #include "fcitx-utils/dbus/bus.h"
 #include "fcitx-utils/dbus/servicewatcher.h"
 #include "fcitx-utils/event.h"
+#include "fcitx-utils/fs.h"
 #include "fcitx/addonfactory.h"
 #include "fcitx/addoninstance.h"
 #include "fcitx/addonmanager.h"
 #include "fcitx/focusgroup.h"
+#include "fcitx/icontheme.h"
 #include "fcitx/instance.h"
 #include "fcitx/userinterface.h"
 
@@ -46,7 +36,7 @@ public:
     void update(UserInterfaceComponent component,
                 InputContext *inputContext) override;
     void updateInputPanel(InputContext *inputContext);
-    void updateCurrentInputMethod(InputContext *inputContext);
+    void updateCurrentInputMethod(InputContext *ic);
 
     void msgV1Handler(dbus::Message &msg);
     void msgV2Handler(dbus::Message &msg);
@@ -57,6 +47,11 @@ public:
 
 private:
     void setAvailable(bool available);
+
+    std::string iconName(const std::string &icon) {
+        return IconTheme::iconName(icon, inFlatpak_);
+    }
+
     Instance *instance_;
     dbus::Bus *bus_;
     dbus::ServiceWatcher watcher_;
@@ -65,8 +60,13 @@ private:
     std::vector<std::unique_ptr<HandlerTableEntry<EventHandler>>>
         eventHandlers_;
     TrackableObjectReference<InputContext> lastInputContext_;
+    bool auxDownIsEmpty_ = true;
     std::unique_ptr<EventSourceTime> timeEvent_;
     bool available_ = false;
+    std::unique_ptr<dbus::Slot> relativeQuery_;
+    bool hasRelative_ = false;
+    bool hasRelativeV2_ = false;
+    const bool inFlatpak_ = fs::isreg("/.flatpak-info");
 };
 } // namespace fcitx
 

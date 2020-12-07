@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2016~2019 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2019 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_DBUS_OBJECTVTABLE_P_H_
 #define _FCITX_UTILS_DBUS_OBJECTVTABLE_P_H_
 
@@ -29,21 +17,23 @@ public:
     ObjectVTableMethodPrivate(ObjectVTableBase *vtable, const std::string &name,
                               const std::string &signature,
                               const std::string &ret, ObjectMethod handler)
-        : name_(name), signature_(signature), ret_(ret), handler_(handler),
-          vtable_(vtable) {}
+        : name_(name), signature_(signature), ret_(ret),
+          internalHandler_(std::move(handler)), vtable_(vtable) {}
 
     const std::string name_;
     const std::string signature_;
     const std::string ret_;
-    ObjectMethod handler_;
+    ObjectMethod internalHandler_;
+    ObjectMethod closureHandler_;
     ObjectVTableBase *vtable_;
 };
 
 class ObjectVTableSignalPrivate {
 public:
-    ObjectVTableSignalPrivate(ObjectVTableBase *vtable, const std::string &name,
-                              const std::string signature)
-        : name_(name), signature_(signature), vtable_(vtable) {}
+    ObjectVTableSignalPrivate(ObjectVTableBase *vtable, std::string name,
+                              std::string signature)
+        : name_(std::move(name)), signature_(std::move(signature)),
+          vtable_(vtable) {}
     const std::string name_;
     const std::string signature_;
     ObjectVTableBase *vtable_;
@@ -51,12 +41,14 @@ public:
 
 class ObjectVTablePropertyPrivate {
 public:
-    ObjectVTablePropertyPrivate(const std::string &name,
-                                const std::string signature,
+    ObjectVTablePropertyPrivate(std::string name, std::string signature,
                                 PropertyGetMethod getMethod,
                                 PropertyOptions options)
-        : name_(name), signature_(signature), getMethod_(getMethod),
-          writable_(false), options_(options) {}
+        : name_(std::move(name)), signature_(std::move(signature)),
+          getMethod_(std::move(getMethod)), writable_(false),
+          options_(options) {}
+
+    virtual ~ObjectVTablePropertyPrivate() = default;
 
     const std::string name_;
     const std::string signature_;
@@ -67,13 +59,13 @@ public:
 
 class ObjectVTableWritablePropertyPrivate : public ObjectVTablePropertyPrivate {
 public:
-    ObjectVTableWritablePropertyPrivate(const std::string &name,
-                                        const std::string signature,
+    ObjectVTableWritablePropertyPrivate(std::string name, std::string signature,
                                         PropertyGetMethod getMethod,
                                         PropertySetMethod setMethod,
                                         PropertyOptions options)
-        : ObjectVTablePropertyPrivate(name, signature, getMethod, options),
-          setMethod_(setMethod) {
+        : ObjectVTablePropertyPrivate(std::move(name), std::move(signature),
+                                      std::move(getMethod), options),
+          setMethod_(std::move(setMethod)) {
         writable_ = true;
     }
 

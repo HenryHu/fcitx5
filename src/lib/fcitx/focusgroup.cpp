@@ -1,26 +1,14 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
+#include <cassert>
 #include "focusgroup_p.h"
 #include "inputcontext.h"
 #include "inputcontextmanager.h"
-#include <cassert>
 
 namespace fcitx {
 
@@ -32,7 +20,7 @@ FocusGroup::FocusGroup(const std::string &display, InputContextManager &manager)
 FocusGroup::~FocusGroup() {
     FCITX_D();
     while (!d->ics_.empty()) {
-        auto ic = *d->ics_.begin();
+        auto *ic = *d->ics_.begin();
         ic->setFocusGroup(nullptr);
     }
     d->manager_.unregisterFocusGroup(*this);
@@ -58,6 +46,16 @@ InputContext *FocusGroup::focusedInputContext() const {
     return d->focus_;
 }
 
+bool FocusGroup::foreach(const InputContextVisitor &visitor) {
+    FCITX_D();
+    for (auto *ic : d->ics_) {
+        if (!visitor(ic)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void FocusGroup::addInputContext(InputContext *ic) {
     FCITX_D();
     auto iter = d->ics_.insert(ic);
@@ -77,5 +75,10 @@ void FocusGroup::removeInputContext(InputContext *ic) {
 const std::string &FocusGroup::display() const {
     FCITX_D();
     return d->display_;
+}
+
+size_t FocusGroup::size() const {
+    FCITX_D();
+    return d->ics_.size();
 }
 } // namespace fcitx

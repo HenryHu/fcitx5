@@ -1,16 +1,11 @@
 #include "wl_data_device_manager.h"
+#include <cassert>
 #include "wl_data_device.h"
 #include "wl_data_source.h"
 #include "wl_seat.h"
-#include <cassert>
-namespace fcitx {
-namespace wayland {
-constexpr const char *WlDataDeviceManager::interface;
-constexpr const wl_interface *const WlDataDeviceManager::wlInterface;
-const uint32_t WlDataDeviceManager::version;
+namespace fcitx::wayland {
 WlDataDeviceManager::WlDataDeviceManager(wl_data_device_manager *data)
-    : version_(wl_data_device_manager_get_version(data)),
-      data_(data, &WlDataDeviceManager::destructor) {
+    : version_(wl_data_device_manager_get_version(data)), data_(data) {
     wl_data_device_manager_set_user_data(*this, this);
 }
 void WlDataDeviceManager::destructor(wl_data_device_manager *data) {
@@ -23,5 +18,4 @@ WlDataDevice *WlDataDeviceManager::getDataDevice(WlSeat *seat) {
     return new WlDataDevice(
         wl_data_device_manager_get_data_device(*this, rawPointer(seat)));
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland

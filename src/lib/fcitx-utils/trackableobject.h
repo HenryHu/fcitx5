@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_TRACKABLEOBJECT_H_
 #define _FCITX_UTILS_TRACKABLEOBJECT_H_
 
@@ -24,9 +12,9 @@
 /// \file
 /// \brief Utitliy classes for statically tracking the life of a object.
 
+#include <memory>
 #include <fcitx-utils/handlertable.h>
 #include <fcitx-utils/macros.h>
-#include <memory>
 
 namespace fcitx {
 
@@ -38,7 +26,7 @@ class TrackableObject;
 /// Not thread-safe.
 template <typename T>
 class TrackableObjectReference final {
-    friend class TrackableObject<T>;
+    friend class TrackableObject<std::remove_const_t<T>>;
 
 public:
     TrackableObjectReference() : rawThat_(nullptr) {}
@@ -87,6 +75,11 @@ public:
 
     TrackableObjectReference<T> watch() {
         return TrackableObjectReference<T>(*self_, static_cast<T *>(this));
+    }
+
+    TrackableObjectReference<const T> watch() const {
+        return TrackableObjectReference<const T>(*self_,
+                                                 static_cast<const T *>(this));
     }
 
 private:

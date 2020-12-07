@@ -1,26 +1,14 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
-#include "fcitx-utils/log.h"
-#include <fcitx-utils/event.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <fcitx-utils/event.h>
+#include "fcitx-utils/log.h"
 
 using namespace fcitx;
 
@@ -36,14 +24,14 @@ int main() {
                      [&e, pipefd](EventSource *, int fd, IOEventFlags flags) {
                          FCITX_ASSERT(pipefd[0] == fd);
                          if (flags & IOEventFlag::Hup) {
-                             e.quit();
+                             e.exit();
                          }
 
                          if (flags & IOEventFlag::In) {
                              char buf[20];
                              auto size = read(fd, buf, 20);
                              if (size == 0) {
-                                 e.quit();
+                                 e.exit();
                              } else {
                                  FCITX_INFO() << "QUIT" << flags;
                                  FCITX_ASSERT(size == 1);

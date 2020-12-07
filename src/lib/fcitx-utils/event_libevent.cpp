@@ -1,28 +1,17 @@
-//
-// Copyright (C) 2017~2017 by Henry Hu
-// henry.hu.sh@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 Henry Hu
+ * henry.hu.sh@gmail.com
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "event.h"
-#include "trackableobject.h"
-#include <event2/event.h>
 #include <exception>
 #include <functional>
 #include <vector>
+#include <event2/event.h>
+#include "trackableobject.h"
 
 namespace fcitx {
 
@@ -82,8 +71,7 @@ enum class LibEventSourceEnableState { Disabled = 0, Oneshot = 1, Enabled = 2 };
 template <typename Interface>
 struct LibEventSourceBase : public Interface {
 public:
-    LibEventSourceBase(event_base *eventBase)
-        : eventBase_(eventBase), event_(nullptr, &event_free) {}
+    LibEventSourceBase(event_base *eventBase) : eventBase_(eventBase) {}
 
     ~LibEventSourceBase() = default;
 
@@ -106,7 +94,7 @@ public:
 
 protected:
     event_base *eventBase_; // not owned
-    std::unique_ptr<event, decltype(&event_free)> event_;
+    UniqueCPtr<event, event_free> event_;
     LibEventSourceEnableState state_ = LibEventSourceEnableState::Disabled;
 
 private:
@@ -122,7 +110,7 @@ struct LibEventSourceIO final : public LibEventSourceBase<EventSourceIO> {
     LibEventSourceIO(IOCallback _callback, event_base *eventBase, int fd,
                      IOEventFlags flags)
         : LibEventSourceBase(eventBase), fd_(fd), flags_(flags),
-          callback_(_callback) {
+          callback_(std::move(_callback)) {
         setEnabled(true);
     }
 
@@ -304,12 +292,9 @@ bool EventLoop::exec() {
 #ifdef EVLOOP_NO_EXIT_ON_EMPTY
     int r = event_base_loop(d->event_, EVLOOP_NO_EXIT_ON_EMPTY);
 #else
-    std::unique_ptr<event, decltype(&event_free)> dummy(
-        event_new(
-            d->event_, -1, EV_PERSIST, [](evutil_socket_t, short, void *) {},
-            nullptr),
-        &event_free);
-    ;
+    UniqueCPtr<event, event_free> dummy(event_new(
+        d->event_, -1, EV_PERSIST, [](evutil_socket_t, short, void *) {},
+        nullptr));
     struct timeval tv;
     tv.tv_sec = 1000000000;
     tv.tv_usec = 0;
@@ -317,7 +302,7 @@ bool EventLoop::exec() {
     int r = event_base_loop(d->event_, 0);
 #endif
     for (auto iter = d->exitEvents_.begin(); iter != d->exitEvents_.end();) {
-        if (auto event = iter->get()) {
+        if (auto *event = iter->get()) {
             if (event->isEnabled()) {
                 try {
                     if (event->isOneShot()) {
@@ -339,13 +324,13 @@ bool EventLoop::exec() {
     return r >= 0;
 }
 
-void EventLoop::quit() {
+void EventLoop::exit() {
     FCITX_D();
     event_base_loopexit(d->event_, nullptr);
 }
 
 void IOEventCallback(evutil_socket_t fd, short events, void *arg) {
-    auto source = static_cast<LibEventSourceIO *>(arg);
+    auto *source = static_cast<LibEventSourceIO *>(arg);
     try {
         if (source->isOneShot()) {
             source->setEnabled(false);
@@ -360,14 +345,14 @@ void IOEventCallback(evutil_socket_t fd, short events, void *arg) {
 std::unique_ptr<EventSourceIO> EventLoop::addIOEvent(int fd, IOEventFlags flags,
                                                      IOCallback callback) {
     FCITX_D();
-    auto source =
-        std::make_unique<LibEventSourceIO>(callback, d->event_, fd, flags);
+    auto source = std::make_unique<LibEventSourceIO>(std::move(callback),
+                                                     d->event_, fd, flags);
     return source;
 }
 
 void TimeEventCallback(evutil_socket_t, short, void *arg) {
 
-    auto source = static_cast<LibEventSourceTime *>(arg);
+    auto *source = static_cast<LibEventSourceTime *>(arg);
 
     try {
         auto sourceRef = source->watch();
@@ -388,26 +373,23 @@ std::unique_ptr<EventSourceTime>
 EventLoop::addTimeEvent(clockid_t clock, uint64_t usec, uint64_t accuracy,
                         TimeCallback callback) {
     FCITX_D();
-    auto source = std::make_unique<LibEventSourceTime>(callback, d->event_,
-                                                       usec, clock, accuracy);
+    auto source = std::make_unique<LibEventSourceTime>(
+        std::move(callback), d->event_, usec, clock, accuracy);
     return source;
 }
 
 std::unique_ptr<EventSource> EventLoop::addExitEvent(EventCallback callback) {
     FCITX_D();
-    auto source = std::make_unique<LibEventSourceExit>(callback);
+    auto source = std::make_unique<LibEventSourceExit>(std::move(callback));
     d->exitEvents_.push_back(source->watch());
     return source;
 }
 
-bool DeferEventCallback(EventSourceTime *source, uint64_t,
-                        EventCallback callback) {
-    return callback(source);
-}
-
 std::unique_ptr<EventSource> EventLoop::addDeferEvent(EventCallback callback) {
-    return addTimeEvent(CLOCK_MONOTONIC, 0, 0,
-                        std::bind(DeferEventCallback, std::placeholders::_1,
-                                  std::placeholders::_2, callback));
+    return addTimeEvent(
+        CLOCK_MONOTONIC, 0, 0,
+        [callback = std::move(callback)](EventSourceTime *source, uint64_t) {
+            return callback(source);
+        });
 }
 } // namespace fcitx

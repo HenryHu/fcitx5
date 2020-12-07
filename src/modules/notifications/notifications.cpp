@@ -1,36 +1,20 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-// Copyright (C) 2012~2013 by Yichao Yu
-// yyc1992@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ * SPDX-FileCopyrightText: 2012-2013 Yichao Yu <yyc1992@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "notifications.h"
-#include "dbus_public.h"
+#include <fcntl.h>
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx-utils/standardpath.h"
 #include "fcitx/addonfactory.h"
 #include "fcitx/addonmanager.h"
-#include <fcntl.h>
-
-#ifndef DBUS_TIMEOUT_USE_DEFAULT
-#define DBUS_TIMEOUT_USE_DEFAULT (-1)
-#endif
+#include "fcitx/icontheme.h"
+#include "dbus_public.h"
 
 #define NOTIFICATIONS_SERVICE_NAME "org.freedesktop.Notifications"
 #define NOTIFICATIONS_INTERFACE_NAME "org.freedesktop.Notifications"
@@ -49,7 +33,9 @@ Notifications::Notifications(Instance *instance)
             uint32_t id = 0;
             std::string key;
             if (message >> id >> key) {
-                auto item = findByGlobalId(id);
+                FCITX_DEBUG()
+                    << "Notification ActionInvoked: " << id << " " << key;
+                auto *item = findByGlobalId(id);
                 if (item && item->actionCallback_) {
                     item->actionCallback_(key);
                 }
@@ -63,7 +49,7 @@ Notifications::Notifications(Instance *instance)
             uint32_t id = 0;
             uint32_t reason = 0;
             if (message >> id >> reason) {
-                auto item = findByGlobalId(id);
+                auto *item = findByGlobalId(id);
                 if (item) {
                     if (item->closedCallback_) {
                         item->closedCallback_(reason);
@@ -135,7 +121,7 @@ void Notifications::save() {
 }
 
 void Notifications::closeNotification(uint64_t internalId) {
-    auto item = find(internalId);
+    auto *item = find(internalId);
     if (item) {
         if (item->globalId_) {
             auto message = bus_->createMethodCall(
@@ -147,9 +133,6 @@ void Notifications::closeNotification(uint64_t internalId) {
         removeItem(*item);
     }
 }
-
-#define TIMEOUT_REAL_TIME (100)
-#define TIMEOUT_ADD_TIME (TIMEOUT_REAL_TIME + 10)
 
 uint32_t Notifications::sendNotification(
     const std::string &appName, uint32_t replaceId, const std::string &appIcon,
@@ -168,7 +151,8 @@ uint32_t Notifications::sendNotification(
         removeItem(*replaceItem);
     }
 
-    message << appName << replaceId << appIcon << summary << body;
+    message << appName << replaceId << IconTheme::iconName(appIcon, inFlatpak_)
+            << summary << body;
     message << actions;
     message << dbus::Container(dbus::Container::Type::Array,
                                dbus::Signature("{sv}"));
@@ -186,27 +170,24 @@ uint32_t Notifications::sendNotification(
     int internalId = internalId_;
     auto &item = result.first->second;
     item.slot_ =
-        message.callAsync(TIMEOUT_REAL_TIME * 1000 / 2,
-                          [this, internalId](dbus::Message &message) {
-                              auto item = find(internalId);
-                              if (item) {
-                                  if (!message.isError()) {
-                                      uint32_t globalId;
-                                      if (message >> globalId) {
-                                          ;
-                                      }
-                                      if (item) {
-                                          item->globalId_ = globalId;
-                                          globalToInternalId_[globalId] =
-                                              internalId;
-                                      }
-                                      item->slot_.reset();
-                                      return true;
-                                  }
-                                  removeItem(*item);
-                              }
-                              return true;
-                          });
+        message.callAsync(0, [this, internalId](dbus::Message &message) {
+            auto *item = find(internalId);
+            if (!item) {
+                return true;
+            }
+            if (message.isError()) {
+                removeItem(*item);
+                return true;
+            }
+            uint32_t globalId;
+            if (!(message >> globalId)) {
+                return true;
+            }
+            item->globalId_ = globalId;
+            globalToInternalId_[globalId] = internalId;
+            item->slot_.reset();
+            return true;
+        });
 
     return internalId;
 }
@@ -227,6 +208,7 @@ void Notifications::showTip(const std::string &tipId,
         appName, lastTipId_, appIcon, summary, body, actions, timeout,
         [this, tipId](const std::string &action) {
             if (action == "dont-show") {
+                FCITX_DEBUG() << "Dont show clicked: " << tipId;
                 if (hiddenNotifications_.insert(tipId).second) {
                     save();
                 }

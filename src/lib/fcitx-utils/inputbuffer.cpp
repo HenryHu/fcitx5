@@ -1,27 +1,16 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "inputbuffer.h"
-#include "fcitx-utils/utf8.h"
 #include <exception>
 #include <functional>
 #include <numeric>
+#include <stdexcept>
 #include <vector>
+#include "fcitx-utils/utf8.h"
 
 namespace fcitx {
 
@@ -73,14 +62,16 @@ InputBufferOptions InputBuffer::options() const {
     return d->options_;
 }
 
-void InputBuffer::type(uint32_t c) { type(fcitx::utf8::UCS4ToUTF8(c)); }
+bool InputBuffer::type(uint32_t unicode) {
+    return type(fcitx::utf8::UCS4ToUTF8(unicode));
+}
 
 const std::string &InputBuffer::userInput() const {
     FCITX_D();
     return d->input_;
 }
 
-void InputBuffer::typeImpl(const char *s, size_t length) {
+bool InputBuffer::typeImpl(const char *s, size_t length) {
     FCITX_D();
     auto utf8Length = fcitx::utf8::lengthValidated(s, s + length);
     if (utf8Length == fcitx::utf8::INVALID_LENGTH) {
@@ -91,14 +82,14 @@ void InputBuffer::typeImpl(const char *s, size_t length) {
             "ascii only buffer only accept ascii only string");
     }
     if (d->maxSize_ && (utf8Length + size() > d->maxSize_)) {
-        return;
+        return false;
     }
     d->input_.insert(std::next(d->input_.begin(), cursorByChar()), s,
                      s + length);
     if (!d->isAsciiOnly()) {
-        auto iter = s;
-        std::function<size_t()> func = [&iter]() {
-            auto next = fcitx::utf8::nextChar(iter);
+        const auto *iter = s;
+        auto func = [&iter]() {
+            const auto *next = fcitx::utf8::nextChar(iter);
             auto diff = std::distance(iter, next);
             iter = next;
             return diff;
@@ -116,6 +107,7 @@ void InputBuffer::typeImpl(const char *s, size_t length) {
         }
     }
     d->cursor_ += utf8Length;
+    return true;
 }
 
 size_t InputBuffer::cursorByChar() const {
@@ -204,10 +196,9 @@ std::pair<size_t, size_t> InputBuffer::rangeAt(size_t i) const {
     }
     if (d->isAsciiOnly()) {
         return {i, i + 1};
-    } else {
-        d->ensureAccTill(i);
-        return {d->acc_[i], d->acc_[i] + d->sz_[i]};
     }
+    d->ensureAccTill(i);
+    return {d->acc_[i], d->acc_[i] + d->sz_[i]};
 }
 
 uint32_t InputBuffer::charAt(size_t i) const {
@@ -217,20 +208,18 @@ uint32_t InputBuffer::charAt(size_t i) const {
     }
     if (d->isAsciiOnly()) {
         return d->input_[i];
-    } else {
-        d->ensureAccTill(i);
-        return utf8::getChar(d->input_.begin() + d->acc_[i],
-                             d->input_.begin() + d->sz_[i]);
     }
+    d->ensureAccTill(i);
+    return utf8::getChar(d->input_.begin() + d->acc_[i],
+                         d->input_.begin() + d->sz_[i]);
 }
 
 size_t InputBuffer::sizeAt(size_t i) const {
     FCITX_D();
     if (d->isAsciiOnly()) {
         return 1;
-    } else {
-        return d->sz_[i];
     }
+    return d->sz_[i];
 }
 
 void InputBuffer::shrinkToFit() {

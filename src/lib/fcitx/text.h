@@ -1,30 +1,18 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_TEXT_H_
 #define _FCITX_TEXT_H_
 
-#include "fcitxcore_export.h"
+#include <memory>
+#include <string>
 #include <fcitx-utils/flags.h>
 #include <fcitx-utils/macros.h>
 #include <fcitx-utils/textformatflags.h>
-#include <memory>
-#include <string>
+#include "fcitxcore_export.h"
 
 /// \addtogroup FcitxCore
 /// \{
@@ -38,8 +26,8 @@ class TextPrivate;
 class FCITXCORE_EXPORT Text {
 public:
     Text();
-    explicit Text(const std::string &text,
-                  TextFormatFlags flag = TextFormatFlag::None);
+    explicit Text(std::string text,
+                  TextFormatFlags flag = TextFormatFlag::NoFlag);
     FCITX_DECLARE_VIRTUAL_DTOR_COPY_AND_MOVE(Text);
 
     /// Get cursor by byte.
@@ -47,11 +35,11 @@ public:
     /// Set cursor by byte.
     void setCursor(int pos = -1);
     void clear();
-    void append(const std::string &str,
-                TextFormatFlags flag = TextFormatFlag::None);
+    void append(std::string str, TextFormatFlags flag = TextFormatFlag::NoFlag);
     const std::string &stringAt(int idx) const;
     TextFormatFlags formatAt(int idx) const;
     size_t size() const;
+    bool empty() const;
     size_t textLength() const;
     std::string toString() const;
     std::string toStringForCommit() const;

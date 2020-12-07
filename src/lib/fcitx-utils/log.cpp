@@ -1,28 +1,21 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "log.h"
-#include "fs.h"
-#include "stringutils.h"
+#include <chrono>
 #include <mutex>
 #include <type_traits>
 #include <unordered_set>
+#include <fmt/format.h>
+#if FMT_VERSION >= 50300
+#include <fmt/chrono.h>
+#endif
+#include "fs.h"
+#include "stringutils.h"
 
 namespace fcitx {
 
@@ -77,7 +70,7 @@ public:
             }
         }
 
-        for (auto category : categories_) {
+        for (auto *category : categories_) {
             applyRule(category);
         }
     }
@@ -119,7 +112,7 @@ LogCategory::~LogCategory() {
 
 bool LogCategory::checkLogLevel(LogLevel l) const {
     FCITX_D();
-    return l != LogLevel::None &&
+    return l != LogLevel::NoLog &&
            static_cast<std::underlying_type_t<LogLevel>>(l) <=
                static_cast<std::underlying_type_t<LogLevel>>(d->level_);
 }
@@ -159,7 +152,7 @@ bool LogCategory::fatalWrapper(LogLevel level) const {
     return needLog;
 }
 
-bool LogCategory::fatalWrapper2(LogLevel level) const {
+bool LogCategory::fatalWrapper2(LogLevel level) {
     if (level == LogLevel::Fatal) {
         std::abort();
     }
@@ -194,7 +187,15 @@ LogMessageBuilder::LogMessageBuilder(std::ostream &out, LogLevel l,
     default:
         break;
     }
-    out_ << " ";
+
+#if FMT_VERSION >= 50300
+    auto now = std::chrono::system_clock::now();
+    auto floor = std::chrono::floor<std::chrono::seconds>(now);
+    auto micro =
+        std::chrono::duration_cast<std::chrono::microseconds>(now - floor);
+    auto t = fmt::localtime(std::chrono::system_clock::to_time_t(now));
+    out_ << fmt::format("{:%F %T}.{:06d}", t, micro.count()) << " ";
+#endif
     out_ << filename << ":" << lineNumber << "] ";
 }
 

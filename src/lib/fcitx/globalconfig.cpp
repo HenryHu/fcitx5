@@ -1,26 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "globalconfig.h"
 #include "fcitx-config/configuration.h"
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/i18n.h"
+#include "inputcontextmanager.h"
 
 namespace fcitx {
 
@@ -35,10 +24,13 @@ FCITX_CONFIGURATION(
         {Key("Control+space"), Key("Zenkaku_Hankaku"), Key("Hangul")},
         KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
                           KeyConstrainFlag::AllowModifierOnly})};
+    Option<bool> enumerateWithTriggerKeys{
+        this, "EnumerateWithTriggerKeys",
+        _("Enumerate when press trigger key repeatedly"), true};
     KeyListOption altTriggerKeys{
         this,
         "AltTriggerKeys",
-        _("Alternative Trigger Input Method"),
+        _("Temporally switch between first and current Input Method"),
         {Key("Shift_L")},
         KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
                           KeyConstrainFlag::AllowModifierOnly})};
@@ -46,16 +38,19 @@ FCITX_CONFIGURATION(
         this,
         "EnumerateForwardKeys",
         _("Enumerate Input Method Forward"),
-        {Key("Control+Shift_R")},
+        {Key("Control+Shift_L")},
         KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
                           KeyConstrainFlag::AllowModifierOnly})};
     KeyListOption enumerateBackwardKeys{
         this,
         "EnumerateBackwardKeys",
         _("Enumerate Input Method Backward"),
-        {Key("Control+Shift_L")},
+        {Key("Control+Shift_R")},
         KeyListConstrain({KeyConstrainFlag::AllowModifierLess,
                           KeyConstrainFlag::AllowModifierOnly})};
+    Option<bool> enumerateSkipFirst{
+        this, "EnumerateSkipFirst",
+        _("Skip first input method while enumerating"), false};
     KeyListOption enumerateGroupForwardKeys{
         this,
         "EnumerateGroupForwardKeys",
@@ -97,11 +92,34 @@ FCITX_CONFIGURATION(
         "NextPage",
         _("Default Next page"),
         {Key("Down")},
-        KeyListConstrain({KeyConstrainFlag::AllowModifierLess})};);
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess})};
+    KeyListOption defaultPrevCandidate{
+        this,
+        "PrevCandidate",
+        _("Default Previous Candidate"),
+        {Key("Shift+Tab")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess})};
+    KeyListOption defaultNextCandidate{
+        this,
+        "NextCandidate",
+        _("Default Next Candidate"),
+        {Key("Tab")},
+        KeyListConstrain({KeyConstrainFlag::AllowModifierLess})};
+    KeyListOption togglePreedit{this,
+                                "TogglePreedit",
+                                _("Toggle embedded preedit"),
+                                {Key("Control+Alt+P")},
+                                KeyListConstrain()};);
 
 FCITX_CONFIGURATION(
     BehaviorConfig, Option<bool> activeByDefault{this, "ActiveByDefault",
                                                  _("Active By Default")};
+    Option<PropertyPropagatePolicy> shareState{this, "ShareInputState",
+                                               _("Share Input State"),
+                                               PropertyPropagatePolicy::No};
+    Option<bool> preeditEnabledByDefault{this, "PreeditEnabledByDefault",
+                                         _("Show preedit in application"),
+                                         true};
     Option<bool> showInputMethodInformation{
         this, "ShowInputMethodInformation",
         _("Show Input Method Information when switch input method"), true};
@@ -114,7 +132,10 @@ FCITX_CONFIGURATION(
     HiddenOption<std::vector<std::string>> enabledAddons{
         this, "EnabledAddons", "Force Enabled Addons"};
     HiddenOption<std::vector<std::string>> disabledAddons{
-        this, "DisabledAddons", "Force Disabled Addons"};);
+        this, "DisabledAddons", "Force Disabled Addons"};
+    HiddenOption<bool> preloadInputMethod{
+        this, "PreloadInputMethod",
+        "Preload input method to be used by default", true};);
 
 FCITX_CONFIGURATION(GlobalConfig,
                     Option<HotkeyConfig> hotkey{this, "Hotkey", _("Hotkey")};
@@ -148,6 +169,11 @@ const KeyList &GlobalConfig::triggerKeys() const {
     return *d->hotkey->triggerKeys;
 }
 
+bool GlobalConfig::enumerateWithTriggerKeys() const {
+    FCITX_D();
+    return *d->hotkey->enumerateWithTriggerKeys;
+}
+
 const KeyList &GlobalConfig::altTriggerKeys() const {
     FCITX_D();
     return *d->hotkey->altTriggerKeys;
@@ -173,6 +199,11 @@ const KeyList &GlobalConfig::enumerateBackwardKeys() const {
     return d->hotkey->enumerateBackwardKeys.value();
 }
 
+bool GlobalConfig::enumerateSkipFirst() const {
+    FCITX_D();
+    return *d->hotkey->enumerateSkipFirst;
+}
+
 const KeyList &GlobalConfig::enumerateGroupForwardKeys() const {
     FCITX_D();
     return *d->hotkey->enumerateGroupForwardKeys;
@@ -181,6 +212,11 @@ const KeyList &GlobalConfig::enumerateGroupForwardKeys() const {
 const KeyList &GlobalConfig::enumerateGroupBackwardKeys() const {
     FCITX_D();
     return *d->hotkey->enumerateGroupBackwardKeys;
+}
+
+const KeyList &GlobalConfig::togglePreeditKeys() const {
+    FCITX_D();
+    return *d->hotkey->togglePreedit;
 }
 
 bool GlobalConfig::activeByDefault() const {
@@ -198,6 +234,16 @@ bool GlobalConfig::showInputMethodInformationWhenFocusIn() const {
     return d->behavior->showInputMethodInformationWhenFocusIn.value();
 }
 
+PropertyPropagatePolicy GlobalConfig::shareInputState() const {
+    FCITX_D();
+    return d->behavior->shareState.value();
+}
+
+bool GlobalConfig::preeditEnabledByDefault() const {
+    FCITX_D();
+    return d->behavior->preeditEnabledByDefault.value();
+}
+
 const KeyList &GlobalConfig::defaultPrevPage() const {
     FCITX_D();
     return d->hotkey->defaultPrevPage.value();
@@ -206,6 +252,16 @@ const KeyList &GlobalConfig::defaultPrevPage() const {
 const KeyList &GlobalConfig::defaultNextPage() const {
     FCITX_D();
     return d->hotkey->defaultNextPage.value();
+}
+
+const KeyList &GlobalConfig::defaultPrevCandidate() const {
+    FCITX_D();
+    return d->hotkey->defaultPrevCandidate.value();
+}
+
+const KeyList &GlobalConfig::defaultNextCandidate() const {
+    FCITX_D();
+    return d->hotkey->defaultNextCandidate.value();
 }
 
 int GlobalConfig::defaultPageSize() const {
@@ -231,6 +287,11 @@ void GlobalConfig::setEnabledAddons(const std::vector<std::string> &addons) {
 void GlobalConfig::setDisabledAddons(const std::vector<std::string> &addons) {
     FCITX_D();
     d->behavior.mutableValue()->disabledAddons.setValue(addons);
+}
+
+bool GlobalConfig::preloadInputMethod() const {
+    FCITX_D();
+    return *d->behavior->preloadInputMethod;
 }
 
 const Configuration &GlobalConfig::config() const {

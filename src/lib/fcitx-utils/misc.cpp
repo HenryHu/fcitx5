@@ -1,25 +1,14 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "misc.h"
-#include "log.h"
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fmt/format.h>
+#include "log.h"
 
 namespace fcitx {
 
@@ -52,7 +41,7 @@ void startProcess(const std::vector<std::string> &args,
             for (auto const &a : args) {
                 argv.emplace_back(const_cast<char *>(a.c_str()));
             }
-            // NULL terminate
+            // nullptr terminate
             argv.push_back(nullptr);
             execvp(argv[0], argv.data());
             perror("execvp");
@@ -64,6 +53,65 @@ void startProcess(const std::vector<std::string> &args,
         int status;
         waitpid(child_pid, &status, 0);
     }
+}
+
+std::string getProcessName(pid_t pid) {
+#if defined(__linux__)
+    auto path = fmt::format("/proc/{}/exe", pid);
+    if (auto link = fs::readlink(path)) {
+        return fs::baseName(*link);
+    }
+    return {};
+#elif defined(LIBKVM_FOUND)
+#if defined(__NetBSD__) || defined(__OpenBSD__)
+    kvm_t *vm = kvm_open(nullptr, nullptr, nullptr, KVM_NO_FILES, nullptr);
+#else
+    kvm_t *vm = kvm_open(0, "/dev/null", 0, O_RDONLY, nullptr);
+#endif
+    if (vm == 0) {
+        return {};
+    }
+
+    std::string result;
+    do {
+        int cnt;
+#ifdef __NetBSD__
+        struct kinfo_proc2 *kp = kvm_getproc2(vm, KERN_PROC_PID, pid,
+                                              sizeof(struct kinfo_proc2), &cnt);
+#else
+        struct kinfo_proc *kp = kvm_getprocs(vm, KERN_PROC_PID, pid, &cnt);
+#endif
+        if ((cnt != 1) || (kp == 0)) {
+            break;
+        }
+        int i;
+        for (i = 0; i < cnt; i++)
+#if defined(__NetBSD__) || defined(__OpenBSD__)
+            if (kp->p_pid == pid)
+#else
+            if (kp->ki_pid == pid)
+#endif
+                break;
+        if (i != cnt) {
+#if defined(__NetBSD__) || defined(__OpenBSD__)
+            result = kp->p_comm;
+#else
+            result = kp->ki_comm;
+#endif
+        }
+    } while (0);
+    kvm_close(vm);
+    return result;
+#else
+    return result;
+#endif
+}
+
+ssize_t getline(UniqueCPtr<char> &lineptr, size_t *n, std::FILE *stream) {
+    auto *lineRawPtr = lineptr.release();
+    auto ret = getline(&lineRawPtr, n, stream);
+    lineptr.reset(lineRawPtr);
+    return ret;
 }
 
 } // namespace fcitx

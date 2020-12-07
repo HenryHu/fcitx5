@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UI_CLASSIC_XCBTRAYWINDOW_H_
 #define _FCITX_UI_CLASSIC_XCBTRAYWINDOW_H_
 
@@ -41,12 +29,15 @@ public:
     void updateGroupMenu();
     void updateInputMethodMenu();
 
+    void render() override;
+
 private:
     void findDock();
     void sendTrayOpcode(long message, long data1, long data2, long data3);
     void refreshDockWindow();
     xcb_visualid_t trayVisual();
     void paint(cairo_t *cr);
+    void createTrayWindow();
 
     xcb_window_t dockWindow_ = XCB_WINDOW_NONE;
     std::unique_ptr<HandlerTableEntry<XCBSelectionNotifyCallback>>
@@ -59,8 +50,7 @@ private:
     Menu menu_;
     SimpleAction inputMethodAction_;
     SimpleAction groupAction_;
-    SimpleAction separatorActions_[3];
-    SimpleAction configureCurrentAction_;
+    SimpleAction separatorActions_[2];
     SimpleAction configureAction_;
     SimpleAction restartAction_;
     SimpleAction exitAction_;
@@ -74,6 +64,8 @@ private:
     SimpleAction testSubAction2_;
 #endif
 
+    xcb_visualid_t trayVid_ = 0;
+    int trayDepth_ = 0;
     Menu groupMenu_;
     std::list<SimpleAction> groupActions_;
     Menu inputMethodMenu_;

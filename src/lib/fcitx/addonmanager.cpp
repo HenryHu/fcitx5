@@ -1,33 +1,21 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "addonmanager.h"
-#include "addonloader.h"
-#include "addonloader_p.h"
-#include "fcitx-config/iniparser.h"
-#include "fcitx-utils/log.h"
-#include "instance.h"
-#include "misc_p.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
+#include "fcitx-config/iniparser.h"
+#include "fcitx-utils/log.h"
+#include "addonloader.h"
+#include "addonloader_p.h"
+#include "instance.h"
+#include "misc_p.h"
 
 namespace fcitx {
 
@@ -82,8 +70,8 @@ public:
     }
 
     DependencyCheckStatus checkDependencies(const Addon &a) {
-        auto &dependencies = a.info().dependencies();
-        for (auto &dependency : dependencies) {
+        const auto &dependencies = a.info().dependencies();
+        for (const auto &dependency : dependencies) {
             Addon *dep = addon(dependency);
             if (!dep || !dep->isLoadable()) {
                 return DependencyCheckStatus::Failed;
@@ -97,8 +85,8 @@ public:
                 return DependencyCheckStatus::Pending;
             }
         }
-        auto &optionalDependencies = a.info().optionalDependencies();
-        for (auto &dependency : optionalDependencies) {
+        const auto &optionalDependencies = a.info().optionalDependencies();
+        for (const auto &dependency : optionalDependencies) {
             Addon *dep = addon(dependency);
             // if not available, don't bother load it
             if (!dep || !dep->isLoadable()) {
@@ -115,6 +103,9 @@ public:
     }
 
     void loadAddons(AddonManager *q_ptr) {
+        if (instance_ && instance_->exiting()) {
+            return;
+        }
         if (inLoadAddons_) {
             throw std::runtime_error("loadAddons is not reentrant, do not call "
                                      "addon(.., true) in constructor of addon");
@@ -125,7 +116,12 @@ public:
             changed = false;
 
             for (auto &item : addons_) {
-                changed |= loadAddon(q_ptr, *item.second.get());
+                changed |= loadAddon(q_ptr, *item.second);
+                // Exit if addon request it.
+                if (instance_ && instance_->exiting()) {
+                    changed = false;
+                    break;
+                }
             }
         } while (changed);
         inLoadAddons_ = false;
@@ -144,10 +140,11 @@ public:
             return false;
         }
         auto result = checkDependencies(addon);
-        FCITX_LOG(Debug) << "Call loadAddon() with "
-                         << addon.info().uniqueName()
-                         << " checkDependencies() returns "
-                         << static_cast<int>(result);
+        FCITX_DEBUG() << "Call loadAddon() with " << addon.info().uniqueName()
+                      << " checkDependencies() returns "
+                      << static_cast<int>(result)
+                      << " Dep: " << addon.info().dependencies()
+                      << " OptDep: " << addon.info().optionalDependencies();
         if (result == DependencyCheckStatus::Failed) {
             addon.setFailed();
         } else if (result == DependencyCheckStatus::Satisfied) {
@@ -168,8 +165,11 @@ public:
             return;
         }
 
-        if (auto loader = findValue(loaders_, addon.info().type())) {
+        if (auto *loader = findValue(loaders_, addon.info().type())) {
             addon.instance_.reset((*loader)->load(addon.info(), q_ptr));
+        } else {
+            FCITX_ERROR() << "Failed to find addon loader for: "
+                          << addon.info().type();
         }
         if (!addon.instance_) {
             addon.setFailed(true);
@@ -211,6 +211,11 @@ void AddonManager::registerLoader(std::unique_ptr<AddonLoader> loader) {
     d->loaders_.emplace(loader->type(), std::move(loader));
 }
 
+void AddonManager::unregisterLoader(const std::string &name) {
+    FCITX_D();
+    d->loaders_.erase(name);
+}
+
 void AddonManager::registerDefaultLoader(StaticAddonRegistry *registry) {
     registerLoader(std::make_unique<SharedLibraryLoader>());
     if (registry) {
@@ -221,12 +226,14 @@ void AddonManager::registerDefaultLoader(StaticAddonRegistry *registry) {
 void AddonManager::load(const std::unordered_set<std::string> &enabled,
                         const std::unordered_set<std::string> &disabled) {
     FCITX_D();
-    auto &path = StandardPath::global();
+    const auto &path = StandardPath::global();
     auto fileMap =
         path.multiOpenAll(StandardPath::Type::PkgData, d->addonConfigDir_,
                           O_RDONLY, filter::Suffix(".conf"));
+    bool enableAll = enabled.count("all");
+    bool disableAll = disabled.count("all");
     for (const auto &file : fileMap) {
-        auto &files = file.second;
+        const auto &files = file.second;
         RawConfig config;
         // reverse the order, so we end up parse user file at last.
         for (auto iter = files.rbegin(), end = files.rend(); iter != end;
@@ -238,13 +245,12 @@ void AddonManager::load(const std::unordered_set<std::string> &enabled,
         // remove .conf
         auto name = file.first.substr(0, file.first.size() - 5);
         // override configuration
-
         auto addon = std::make_unique<Addon>(name, config);
         if (addon->isValid()) {
-            if (disabled.count(name)) {
-                addon->setOverrideEnabled(OverrideEnabled::Disabled);
-            } else if (enabled.count(name)) {
+            if (enableAll || enabled.count(name)) {
                 addon->setOverrideEnabled(OverrideEnabled::Enabled);
+            } else if (disableAll || disabled.count(name)) {
+                addon->setOverrideEnabled(OverrideEnabled::Disabled);
             }
             d->addons_[addon->info().uniqueName()] = std::move(addon);
         }
@@ -278,7 +284,7 @@ void AddonManager::saveAll() {
     // reverse the unload order
     for (auto iter = d->loadOrder_.rbegin(), end = d->loadOrder_.rend();
          iter != end; iter++) {
-        if (auto addonInst = addon(*iter)) {
+        if (auto *addonInst = addon(*iter)) {
             addonInst->save();
         }
     }
@@ -286,7 +292,7 @@ void AddonManager::saveAll() {
 
 AddonInstance *AddonManager::addon(const std::string &name, bool load) {
     FCITX_D();
-    auto addon = d->addon(name);
+    auto *addon = d->addon(name);
     if (!addon) {
         return nullptr;
     }
@@ -300,7 +306,7 @@ AddonInstance *AddonManager::addon(const std::string &name, bool load) {
 
 const AddonInfo *AddonManager::addonInfo(const std::string &name) const {
     FCITX_D();
-    auto addon = d->addon(name);
+    auto *addon = d->addon(name);
     if (addon && addon->isValid()) {
         return &addon->info();
     }

@@ -1,29 +1,17 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "isocodes.h"
-#include "fcitx-utils/metastring.h"
-#include "xmlparser.h"
 #include <cstring>
+#include <memory>
 #include <fcitx-utils/log.h>
 #include <json-c/json.h>
-#include <memory>
+#include "fcitx-utils/metastring.h"
+#include "xmlparser.h"
 
 namespace fcitx {
 
@@ -33,13 +21,11 @@ public:
     virtual void handle(json_object *entry) = 0;
 
     void parse(const std::string &filename) {
-        std::unique_ptr<json_object, decltype(&json_object_put)> obj(
-            nullptr, json_object_put);
+        UniqueCPtr<json_object, json_object_put> obj;
         obj.reset(json_object_from_file(filename.data()));
         if (!obj) {
             return;
         }
-        FCITX_INFO() << RootString::data();
         json_object *root =
             json_object_object_get(obj.get(), RootString::data());
         if (!root || json_object_get_type(root) != json_type_array) {

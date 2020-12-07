@@ -1,28 +1,21 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_DBUS_VARIANT_H_
 #define _FCITX_UTILS_DBUS_VARIANT_H_
 
-#include "fcitxutils_export.h"
-#include "message.h"
 #include <memory>
 #include <string>
+#include "fcitxutils_export.h"
+#include "message.h"
+
+/// \addtogroup FcitxUtils
+/// \{
+/// \file
+/// \brief API for dbus variant type.
 
 namespace fcitx {
 namespace dbus {
@@ -56,22 +49,36 @@ private:
     FCITX_DECLARE_PRIVATE(VariantTypeRegistry);
 };
 
+/// Variant type to be used to box or unbox the dbus variant type.
 class FCITXUTILS_EXPORT Variant {
 public:
+    /// Construct an empty variant.
     Variant() = default;
-    template <typename Value>
+
+    /// Construct a variant from some existing data.
+    template <
+        typename Value,
+        typename Dummy = std::enable_if_t<
+            !std::is_same_v<std::remove_cv_t<std::remove_reference_t<Value>>,
+                            Variant>,
+            void>>
     explicit Variant(Value &&value) {
         setData(std::forward<Value>(value));
     }
 
+    /// Copy Construct a variant from another variant.
     Variant(const Variant &v) : signature_(v.signature_), helper_(v.helper_) {
         if (helper_) {
             data_ = helper_->copy(v.data_.get());
         }
     }
 
+    /// Copy another variant data to current.
     Variant(Variant &&v) = default;
     Variant &operator=(const Variant &v) {
+        if (&v == this) {
+            return *this;
+        }
         signature_ = v.signature_;
         helper_ = v.helper_;
         if (helper_) {
@@ -81,27 +88,33 @@ public:
     }
     Variant &operator=(Variant &&v) = default;
 
+    /// Set variant data from some existing data.
     template <typename Value,
               typename = std::enable_if_t<!std::is_same<
                   std::remove_cv_t<std::remove_reference_t<Value>>,
                   dbus::Variant>::value>>
     void setData(Value &&value);
 
+    /// Copy variant data from another variant.
     void setData(const Variant &v) { *this = v; }
 
+    /// Set variant data from anthoer variant.
     void setData(Variant &&v) { *this = std::move(v); }
 
+    /// Set variant data with a C-string.
     void setData(const char *str) { setData(std::string(str)); }
 
     void setRawData(std::shared_ptr<void> data,
                     std::shared_ptr<VariantHelperBase> helper) {
-        data_ = data;
-        helper_ = helper;
+        data_ = std::move(data);
+        helper_ = std::move(helper);
         if (helper_) {
-            signature_ = helper->signature();
+            signature_ = helper_->signature();
         }
     }
 
+    /// Return data as given type. You need to make sure that signature matches
+    /// before using it.
     template <typename Value>
     const Value &dataAs() const {
         assert(signature() == DBusSignatureTraits<Value>::signature::data());
@@ -110,8 +123,10 @@ public:
 
     void writeToMessage(dbus::Message &msg) const;
 
+    /// Return the signature of the data.
     const std::string &signature() const { return signature_; }
 
+    /// Print the variant data to log.
     void printData(LogMessageBuilder &builder) const {
         if (helper_) {
             helper_->print(builder, data_.get());

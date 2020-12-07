@@ -1,32 +1,30 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "waylandmodule.h"
+#include <stdexcept>
+#include <wayland-client.h>
 #include "fcitx-utils/log.h"
 #include "fcitx/instance.h"
-#include <wayland-client.h>
 
 namespace fcitx {
 
+// Return false if XDG_SESSION_TYPE is set and is not wayland.
+bool isWaylandSession() {
+    const char *sessionType = getenv("XDG_SESSION_TYPE");
+    if (sessionType && std::string_view(sessionType) != "wayland") {
+        return false;
+    }
+    return true;
+}
+
 WaylandConnection::WaylandConnection(WaylandModule *wayland, const char *name)
     : parent_(wayland), name_(name ? name : "") {
-    auto display = wl_display_connect(name);
+    auto *display = wl_display_connect(name);
     if (!display) {
         throw std::runtime_error("Failed to open wayland connection");
     }
@@ -57,14 +55,14 @@ void WaylandConnection::onIOEvent(IOEventFlags flags) {
         wl_display_read_events(*display_);
     }
 
-    if (wl_display_dispatch_pending(*display_) < 0) {
+    if (wl_display_dispatch(*display_) < 0) {
         error_ = wl_display_get_error(*display_);
+        FCITX_LOG_IF(Error, error_ != 0)
+            << "Wayland connection got error: " << error_;
         if (error_ != 0) {
             return finish();
         }
     }
-
-    display_->flush();
 }
 
 WaylandModule::WaylandModule(fcitx::Instance *instance) : instance_(instance) {
@@ -87,31 +85,32 @@ void WaylandModule::openDisplay(const std::string &name) {
 }
 
 void WaylandModule::removeDisplay(const std::string &name) {
-    FCITX_LOG(Debug) << "Display removed " << name;
+    FCITX_DEBUG() << "Display removed " << name;
     auto iter = conns_.find(name);
     if (iter != conns_.end()) {
         onConnectionClosed(iter->second);
         conns_.erase(iter);
     }
-    if (name.empty() && instance_->quitWhenMainDisplayDisconnected()) {
+    if (name.empty() && instance_->exitWhenMainDisplayDisconnected() &&
+        isWaylandSession()) {
         instance_->exit();
     }
 }
 
 std::unique_ptr<HandlerTableEntry<WaylandConnectionCreated>>
 WaylandModule::addConnectionCreatedCallback(WaylandConnectionCreated callback) {
-    auto result = createdCallbacks_.add(callback);
+    auto result = createdCallbacks_.add(std::move(callback));
 
     for (auto &p : conns_) {
         auto &conn = p.second;
-        callback(conn.name(), *conn.display(), conn.focusGroup());
+        (**result->handler())(conn.name(), *conn.display(), conn.focusGroup());
     }
     return result;
 }
 
 std::unique_ptr<HandlerTableEntry<WaylandConnectionClosed>>
 WaylandModule::addConnectionClosedCallback(WaylandConnectionClosed callback) {
-    return closedCallbacks_.add(callback);
+    return closedCallbacks_.add(std::move(callback));
 }
 
 void WaylandModule::onConnectionCreated(WaylandConnection &conn) {

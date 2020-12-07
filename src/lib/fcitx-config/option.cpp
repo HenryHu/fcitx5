@@ -1,35 +1,26 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "option.h"
+#include <stdexcept>
 #include "configuration.h"
 
 namespace fcitx {
+
 OptionBase::OptionBase(Configuration *parent, std::string path,
                        std::string description)
-    : parent_(parent), path_(path), description_(description) {
+    : parent_(parent), path_(std::move(path)),
+      description_(std::move(description)) {
 
     // Force the rule of "/" not allowed in option, so our live of GUI would be
     // easier.
-    if (path.find('/') != std::string::npos) {
+    if (path_.find('/') != std::string::npos) {
         throw std::invalid_argument(
-            "/ is not allowed in option, option path is " + path);
+            "/ is not allowed in option, option path is " + path_);
     }
     parent_->addOption(this);
 }
@@ -48,8 +39,9 @@ void OptionBase::dumpDescription(RawConfig &config) const {
 }
 
 ExternalOption::ExternalOption(Configuration *parent, std::string path,
-                               std::string description, std::string external)
-    : OptionBase(parent, path, description), externalUri_(external) {}
+                               std::string description, std::string uri)
+    : OptionBase(parent, std::move(path), std::move(description)),
+      externalUri_(std::move(uri)) {}
 
 std::string ExternalOption::typeString() const { return "External"; }
 

@@ -1,29 +1,17 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
+#include "configuration.h"
 #include <cassert>
 #include <exception>
 #include <list>
 #include <memory>
+#include <stdexcept>
 #include <unordered_map>
-
-#include "configuration.h"
 #include "fcitx-utils/standardpath.h"
 
 namespace fcitx {
@@ -45,7 +33,7 @@ void Configuration::dumpDescription(RawConfig &config) const {
     for (const auto &path : d->optionsOrder_) {
         auto optionIter = d->options_.find(path);
         assert(optionIter != d->options_.end());
-        auto option = optionIter->second;
+        auto *option = optionIter->second;
         if (option->skipDescription()) {
             continue;
         }
@@ -53,7 +41,6 @@ void Configuration::dumpDescription(RawConfig &config) const {
         option->dumpDescription(*descConfigPtr);
 
         auto subConfig = (option->subConfigSkeleton());
-
         if (subConfig) {
             subConfigs.emplace_back(std::move(subConfig));
         }
@@ -83,7 +70,7 @@ void Configuration::copyHelper(const Configuration &other) {
         auto optionIter = d->options_.find(path);
         assert(optionIter != d->options_.end());
         auto otherOptionIter = other.d_func()->options_.find(path);
-        assert(otherOptionIter != d->options_.end());
+        assert(otherOptionIter != other.d_func()->options_.end());
         optionIter->second->copyFrom(*otherOptionIter->second);
     }
 }
@@ -92,7 +79,7 @@ void Configuration::load(const RawConfig &config, bool partial) {
     FCITX_D();
     for (const auto &path : d->optionsOrder_) {
         auto subConfigPtr = config.get(path);
-        auto option = d->options_[path];
+        auto *option = d->options_[path];
         if (!subConfigPtr) {
             if (!partial) {
                 option->reset();
@@ -128,4 +115,16 @@ void Configuration::addOption(OptionBase *option) {
     d->optionsOrder_.push_back(option->path());
     d->options_[option->path()] = option;
 }
+
+void Configuration::syncDefaultValueToCurrent() {
+    FCITX_D();
+    for (const auto &path : d->optionsOrder_) {
+        auto iter = d->options_.find(path);
+        assert(iter != d->options_.end());
+        if (auto optionV2 = dynamic_cast<OptionBaseV2 *>(iter->second)) {
+            optionV2->syncDefaultValueToCurrent();
+        }
+    }
+}
+
 } // namespace fcitx

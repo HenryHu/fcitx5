@@ -1,32 +1,23 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_NOTIFICATIONITEM_DBUSMENU_H_
 #define _FCITX_MODULES_NOTIFICATIONITEM_DBUSMENU_H_
 
+#include <unordered_set>
+#include <fcitx-utils/stringutils.h>
 #include "fcitx-utils/dbus/message.h"
 #include "fcitx-utils/dbus/objectvtable.h"
 #include "fcitx-utils/dbus/variant.h"
 #include "fcitx-utils/event.h"
+#include "fcitx-utils/fs.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx-utils/log.h"
+#include "fcitx/icontheme.h"
 #include "fcitx/inputcontext.h"
-#include <unordered_set>
 
 namespace fcitx {
 
@@ -46,7 +37,7 @@ public:
 private:
     void event(int32_t id, const std::string &type, const dbus::Variant &,
                uint32_t);
-    dbus::Variant getProperty(int32_t, const std::string &);
+    static dbus::Variant getProperty(int32_t, const std::string &);
     std::tuple<uint32_t, DBusMenuLayout>
     getLayout(int parentId, int recursionDepth,
               const std::vector<std::string> &propertyNames);
@@ -57,9 +48,10 @@ private:
     void appendSubItem(std::vector<dbus::Variant> &, int32_t id, int depth,
                        const std::unordered_set<std::string> &propertyNames);
     void handleEvent(int32_t id);
-    void appendProperty(DBusMenuProperties &properties,
-                        const std::unordered_set<std::string> &propertyNames,
-                        const std::string &name, dbus::Variant variant);
+    static void
+    appendProperty(DBusMenuProperties &properties,
+                   const std::unordered_set<std::string> &propertyNames,
+                   const std::string &name, const dbus::Variant &variant);
     void
     fillLayoutProperties(int32_t id,
                          const std::unordered_set<std::string> &propertyNames,
@@ -79,6 +71,10 @@ private:
         return result;
     }
     bool aboutToShow(int32_t id);
+
+    std::string iconName(const std::string &icon) {
+        return IconTheme::iconName(icon, inFlatpak_);
+    }
 
     InputContext *lastRelevantIc();
 
@@ -106,6 +102,8 @@ private:
     std::unique_ptr<EventSourceTime> timeEvent_;
     TrackableObjectReference<InputContext> lastRelevantIc_;
     std::unordered_set<int32_t> requestedMenus_;
+
+    const bool inFlatpak_ = fs::isreg("/.flatpak-info");
 };
 
 } // namespace fcitx

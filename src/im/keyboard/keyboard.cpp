@@ -1,26 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "keyboard.h"
-#include "chardata.h"
-#include "config.h"
-#include "emoji_public.h"
+#include <fcntl.h>
+#include <cstring>
+#include <fmt/format.h>
+#include <libintl.h>
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/cutf8.h"
@@ -34,13 +23,19 @@
 #include "fcitx/inputcontextproperty.h"
 #include "fcitx/inputpanel.h"
 #include "fcitx/instance.h"
+#include "chardata.h"
+#include "config.h"
 #include "notifications_public.h"
+#include "quickphrase_public.h"
 #include "spell_public.h"
+
+#ifdef ENABLE_X11
 #include "xcb_public.h"
-#include <cstring>
-#include <fcntl.h>
-#include <fmt/format.h>
-#include <libintl.h>
+#endif
+
+#ifdef ENABLE_EMOJI
+#include "emoji_public.h"
+#endif
 
 const char imNamePrefix[] = "keyboard-";
 #define FCITX_KEYBOARD_MAX_BUFFER 20
@@ -55,9 +50,8 @@ SpellType guessSpellType(const std::string &input) {
     if (input.size() <= 1) {
         if (charutils::isupper(input[0])) {
             return SpellType::FirstUpper;
-        } else {
-            return SpellType::AllLower;
         }
+        return SpellType::AllLower;
     }
 
     if (std::all_of(input.begin(), input.end(),
@@ -69,9 +63,8 @@ SpellType guessSpellType(const std::string &input) {
                     [](char c) { return charutils::islower(c); })) {
         if (charutils::isupper(input[0])) {
             return SpellType::FirstUpper;
-        } else {
-            return SpellType::AllLower;
         }
+        return SpellType::AllLower;
     }
 
     return SpellType::Mixed;
@@ -99,9 +92,8 @@ std::string formatWord(const std::string &input, SpellType type) {
     return result;
 }
 
-static std::string findBestLanguage(const IsoCodes &isocodes,
-                                    const std::string &hint,
-                                    const std::vector<std::string> &languages) {
+std::string findBestLanguage(const IsoCodes &isocodes, const std::string &hint,
+                             const std::vector<std::string> &languages) {
     /* score:
      * 1 -> first one
      * 2 -> match 2
@@ -109,8 +101,8 @@ static std::string findBestLanguage(const IsoCodes &isocodes,
      */
     const IsoCodes639Entry *bestEntry = nullptr;
     int bestScore = 0;
-    for (auto &language : languages) {
-        auto entry = isocodes.entry(language);
+    for (const auto &language : languages) {
+        const auto *entry = isocodes.entry(language);
         if (!entry) {
             continue;
         }
@@ -164,8 +156,9 @@ static std::string findBestLanguage(const IsoCodes &isocodes,
 KeyboardEngine::KeyboardEngine(Instance *instance) : instance_(instance) {
     registerDomain("xkeyboard-config", XKEYBOARDCONFIG_DATADIR "/locale");
     isoCodes_.read(ISOCODES_ISO639_JSON, ISOCODES_ISO3166_JSON);
-    auto xcb = instance_->addonManager().addon("xcb");
     std::string rule;
+#ifdef ENABLE_X11
+    auto *xcb = instance_->addonManager().addon("xcb");
     if (xcb) {
         auto rules = xcb->call<IXCBModule::xkbRulesNames>("");
         if (!rules[0].empty()) {
@@ -177,6 +170,7 @@ KeyboardEngine::KeyboardEngine(Instance *instance) : instance_(instance) {
             ruleName_ = rule;
         }
     }
+#endif
     if (rule.empty() || !xkbRules_.read(rule)) {
         rule = XKEYBOARDCONFIG_XKBBASE "/rules/" DEFAULT_XKB_RULES ".xml";
         xkbRules_.read(rule);
@@ -186,6 +180,12 @@ KeyboardEngine::KeyboardEngine(Instance *instance) : instance_(instance) {
     instance_->inputContextManager().registerProperty("keyboardState",
                                                       &factory_);
     reloadConfig();
+
+    deferEvent_ = instance_->eventLoop().addDeferEvent([this](EventSource *) {
+        initQuickPhrase();
+        deferEvent_.reset();
+        return true;
+    });
 }
 
 KeyboardEngine::~KeyboardEngine() {}
@@ -193,8 +193,8 @@ KeyboardEngine::~KeyboardEngine() {}
 std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
     std::vector<InputMethodEntry> result;
     bool usExists = false;
-    for (auto &p : xkbRules_.layoutInfos()) {
-        auto &layoutInfo = p.second;
+    for (const auto &p : xkbRules_.layoutInfos()) {
+        const auto &layoutInfo = p.second;
         auto language = findBestLanguage(isoCodes_, layoutInfo.description,
                                          layoutInfo.languages);
         auto description =
@@ -209,9 +209,9 @@ std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
                 .setLabel(layoutInfo.name)
                 .setIcon("input-keyboard")
                 .setConfigurable(true)));
-        for (auto &variantInfo : layoutInfo.variantInfos) {
+        for (const auto &variantInfo : layoutInfo.variantInfos) {
             auto language = findBestLanguage(isoCodes_, variantInfo.description,
-                                             variantInfo.languages.size()
+                                             !variantInfo.languages.empty()
                                                  ? variantInfo.languages
                                                  : layoutInfo.languages);
             auto description =
@@ -223,7 +223,8 @@ std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
             result.push_back(std::move(
                 InputMethodEntry(uniqueName, description, language, "keyboard")
                     .setLabel(layoutInfo.name)
-                    .setIcon("input-keyboard")));
+                    .setIcon("input-keyboard")
+                    .setConfigurable(true)));
         }
     }
 
@@ -231,11 +232,11 @@ std::vector<InputMethodEntry> KeyboardEngine::listInputMethods() {
         RawConfig config;
         readAsIni(config, "conf/cached_layouts");
         for (auto &uniqueName : config.subItems()) {
-            auto desc = config.valueByPath(
+            const auto *desc = config.valueByPath(
                 stringutils::joinPath(uniqueName, "Description"));
-            auto lang = config.valueByPath(
+            const auto *lang = config.valueByPath(
                 stringutils::joinPath(uniqueName, "Language"));
-            auto label =
+            const auto *label =
                 config.valueByPath(stringutils::joinPath(uniqueName, "Label"));
             if (desc && lang && label) {
                 if (uniqueName == "keyboard-us") {
@@ -304,15 +305,17 @@ void KeyboardEngine::reloadConfig() {
 }
 
 static inline bool isValidSym(const Key &key) {
-    if (key.states())
+    if (key.states()) {
         return false;
+    }
 
     return validSyms.count(key.sym());
 }
 
 static inline bool isValidCharacter(uint32_t c) {
-    if (c == 0 || c == FCITX_INVALID_COMPOSE_RESULT)
+    if (c == 0 || c == FCITX_INVALID_COMPOSE_RESULT) {
         return false;
+    }
 
     return validChars.count(c);
 }
@@ -332,8 +335,8 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
     if (event.key().isModifier()) {
         return;
     }
-    auto inputContext = event.inputContext();
-    auto state = inputContext->propertyFor(&factory_);
+    auto *inputContext = event.inputContext();
+    auto *state = inputContext->propertyFor(&factory_);
 
     // check compose first.
     auto compose = instance_->processCompose(inputContext, event.key().sym());
@@ -344,16 +347,26 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
     }
 
     // check the spell trigger key
-    if (event.key().checkKeyList(config_.hintTrigger.value()) && spell() &&
-        spell()->call<ISpell::checkDict>(entry.languageCode())) {
+    if (event.key().checkKeyList(config_.hintTrigger.value()) &&
+        supportHint(entry.languageCode())) {
         state->enableWordHint_ = !state->enableWordHint_;
         commitBuffer(inputContext);
         if (notifications()) {
+            bool hasSpell = spell() && spell()->call<ISpell::checkDict>(
+                                           entry.languageCode());
+            std::string extra;
+            if (!hasSpell) {
+                extra += " ";
+                extra += _("Only emoji support is found. To enable spell "
+                           "checking, you may need to install spell check data "
+                           "for the language.");
+            }
             notifications()->call<INotifications::showTip>(
-                "fcitx-keyboard-hint", "fcitx", "tools-check-spelling",
-                _("Spell hint"),
-                state->enableWordHint_ ? _("Spell hint is enabled.")
-                                       : _("Spell hint is disabled."),
+                "fcitx-keyboard-hint", _("Input Method"),
+                "tools-check-spelling", _("Completion"),
+                state->enableWordHint_
+                    ? stringutils::concat(_("Completion is enabled."), extra)
+                    : _("Completion is disabled."),
                 -1);
         }
         return event.filterAndAccept();
@@ -368,9 +381,8 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
                                             CapabilityFlag::NoSpellCheck,
                                             CapabilityFlag::Sensitive};
         // no supported dictionary
-        if (!spell() ||
-            !spell()->call<ISpell::checkDict>(entry.languageCode()) ||
-            inputContext->capabilityFlags().testAny(noPredictFlag)) {
+        if (inputContext->capabilityFlags().testAny(noPredictFlag) ||
+            !supportHint(entry.languageCode())) {
             break;
         }
 
@@ -383,13 +395,14 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
                 return;
             }
 
-            auto movable = candList->toCursorMovable();
+            auto *movable = candList->toCursorMovable();
             if (movable) {
                 if (event.key().checkKeyList(*config_.nextCandidate)) {
                     movable->nextCandidate();
                     updateUI(inputContext);
                     return event.filterAndAccept();
-                } else if (event.key().checkKeyList(*config_.prevCandidate)) {
+                }
+                if (event.key().checkKeyList(*config_.prevCandidate)) {
                     movable->prevCandidate();
                     updateUI(inputContext);
                     return event.filterAndAccept();
@@ -437,7 +450,9 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
         }
 
         // if we reach here, just commit and discard buffer.
-        commitBuffer(inputContext);
+        if (!state->buffer_.empty()) {
+            commitBuffer(inputContext);
+        }
     } while (0);
 
     // and now we want to forward key.
@@ -449,7 +464,7 @@ void KeyboardEngine::keyEvent(const InputMethodEntry &entry, KeyEvent &event) {
 }
 
 void KeyboardEngine::commitBuffer(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
+    auto *state = inputContext->propertyFor(&factory_);
     auto &buffer = state->buffer_;
     if (!buffer.empty()) {
         inputContext->commitString(preeditString(inputContext));
@@ -478,8 +493,19 @@ private:
     KeyboardEngine *engine_;
 };
 
+bool KeyboardEngine::supportHint(const std::string &language) {
+    const bool hasSpell = spell() && spell()->call<ISpell::checkDict>(language);
+#ifdef ENABLE_EMOJI
+    const bool hasEmoji = *config_.enableEmoji && emoji() &&
+                          emoji()->call<IEmoji::check>(language, true);
+#else
+    const bool hasEmoji = false;
+#endif
+    return hasSpell || hasEmoji;
+}
+
 std::string KeyboardEngine::preeditString(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
+    auto *state = inputContext->propertyFor(&factory_);
     auto candidate = inputContext->inputPanel().candidateList();
     std::string preedit;
     if (candidate && candidate->cursorIndex() >= 0) {
@@ -503,10 +529,15 @@ void KeyboardEngine::updateUI(InputContext *inputContext) {
 
 void KeyboardEngine::updateCandidate(const InputMethodEntry &entry,
                                      InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
-    auto results = spell()->call<ISpell::hint>(entry.languageCode(),
-                                               state->buffer_.userInput(),
-                                               config_.pageSize.value());
+    inputContext->inputPanel().reset();
+    auto *state = inputContext->propertyFor(&factory_);
+    std::vector<std::string> results;
+    if (spell()) {
+        results = spell()->call<ISpell::hint>(entry.languageCode(),
+                                              state->buffer_.userInput(),
+                                              config_.pageSize.value());
+    }
+#ifdef ENABLE_EMOJI
     if (config_.enableEmoji.value() && emoji()) {
         auto emojiResults = emoji()->call<IEmoji::query>(
             entry.languageCode(), state->buffer_.userInput(), true);
@@ -524,6 +555,7 @@ void KeyboardEngine::updateCandidate(const InputMethodEntry &entry,
             i++;
         }
     }
+#endif
 
     auto candidateList = std::make_unique<CommonCandidateList>();
     auto spellType = guessSpellType(state->buffer_.userInput());
@@ -531,6 +563,7 @@ void KeyboardEngine::updateCandidate(const InputMethodEntry &entry,
         candidateList->append<KeyboardCandidateWord>(
             this, Text(formatWord(result, spellType)));
     }
+    candidateList->setPageSize(*config_.pageSize);
     candidateList->setSelectionKey(selectionKeys_);
     candidateList->setCursorIncludeUnselected(true);
     inputContext->inputPanel().setCandidateList(std::move(candidateList));
@@ -539,13 +572,13 @@ void KeyboardEngine::updateCandidate(const InputMethodEntry &entry,
 }
 
 void KeyboardEngine::resetState(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
+    auto *state = inputContext->propertyFor(&factory_);
     state->reset();
     instance_->resetCompose(inputContext);
 }
 
 void KeyboardEngine::reset(const InputMethodEntry &, InputContextEvent &event) {
-    auto inputContext = event.inputContext();
+    auto *inputContext = event.inputContext();
     // The reason that we do not commit here is we want to force the behavior.
     // When client get unfocused, the framework will try to commit the string.
     if (event.type() != EventType::InputContextFocusOut) {
@@ -562,7 +595,7 @@ bool KeyboardEngine::foreachLayout(
     const std::function<
         bool(const std::string &variant, const std::string &description,
              const std::vector<std::string> &languages)> &callback) {
-    for (auto &p : xkbRules_.layoutInfos()) {
+    for (const auto &p : xkbRules_.layoutInfos()) {
         if (!callback(p.second.name, p.second.description,
                       p.second.languages)) {
             return false;
@@ -576,12 +609,47 @@ bool KeyboardEngine::foreachVariant(
     const std::function<
         bool(const std::string &variant, const std::string &description,
              const std::vector<std::string> &languages)> &callback) {
-    auto info = xkbRules_.findByName(layout);
-    for (auto &p : info->variantInfos) {
+    const auto *info = xkbRules_.findByName(layout);
+    for (const auto &p : info->variantInfos) {
         if (!callback(p.name, p.description, p.languages)) {
             return false;
         }
     }
     return true;
 }
+
+void KeyboardEngine::initQuickPhrase() {
+#ifdef ENABLE_EMOJI
+    auto *qp = quickphrase();
+    if (!qp) {
+        return;
+    }
+    quickphraseHandler_ = qp->call<IQuickPhrase::addProvider>(
+        [this](InputContext *ic, const std::string &input,
+               const QuickPhraseAddCandidateCallback &callback) {
+            const auto *im = instance_->inputMethodEntry(ic);
+            if (!im || !im->isKeyboard() || !*config_.enableQuickphraseEmoji ||
+                !emoji()) {
+                return true;
+            }
+            std::set<std::string> result;
+            emoji()->call<IEmoji::prefix>(
+                im->languageCode(), input, true,
+                [&result, inputSize = input.size()](
+                    const std::string &key,
+                    const std::vector<std::string> &values) {
+                    if (inputSize + 1 < key.size()) {
+                        return true;
+                    }
+                    result.insert(values.begin(), values.end());
+                    return true;
+                });
+            for (const auto &str : result) {
+                callback(str, str, QuickPhraseAction::Commit);
+            }
+            return true;
+        });
+#endif
+}
+
 } // namespace fcitx

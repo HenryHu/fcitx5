@@ -1,30 +1,18 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_INPUTBUFFER_H_
 #define _FCITX_UTILS_INPUTBUFFER_H_
 
-#include "fcitxutils_export.h"
 #include <cstring>
-#include <fcitx-utils/flags.h>
-#include <fcitx-utils/macros.h>
 #include <memory>
 #include <string>
+#include <fcitx-utils/flags.h>
+#include <fcitx-utils/macros.h>
+#include "fcitxutils_export.h"
 
 /// \addtogroup FcitxUtils
 /// \{
@@ -36,7 +24,7 @@ class InputBufferPrivate;
 
 enum class InputBufferOption {
     /// No option.
-    None = 0,
+    NoOption = 0,
     /// The input buffer is ascii character only, non ascii char will raise
     /// exception.
     AsciiOnly = 1,
@@ -51,20 +39,20 @@ class FCITXUTILS_EXPORT InputBuffer {
 public:
     /// Create a input buffer with options.
     /// \see InputBufferOption
-    InputBuffer(InputBufferOptions options = InputBufferOption::None);
+    InputBuffer(InputBufferOptions options = InputBufferOption::NoOption);
     virtual ~InputBuffer();
 
     /// Get the buffer option.
     InputBufferOptions options() const;
 
     /// Type a C-String with length into buffer.
-    void type(const char *s, size_t length) { typeImpl(s, length); }
+    bool type(const char *s, size_t length) { return typeImpl(s, length); }
     /// Type an std::stirng to buffer.
-    void type(const std::string &s) { type(s.c_str(), s.size()); }
+    bool type(const std::string &s) { return type(s.c_str(), s.size()); }
     /// Type a C-String to buffer.
-    void type(const char *s) { type(s, std::strlen(s)); }
+    bool type(const char *s) { return type(s, std::strlen(s)); }
     /// Type a ucs4 character to buffer.
-    void type(uint32_t unicode);
+    bool type(uint32_t unicode);
 
     /// Erase a range of character.
     virtual void erase(size_t from, size_t to);
@@ -130,7 +118,7 @@ public:
 protected:
     /// Type a certain length of utf8 character to the buffer. [s, s+length]
     /// need to be valid utf8 string.
-    virtual void typeImpl(const char *s, size_t length);
+    virtual bool typeImpl(const char *s, size_t length);
 
 private:
     std::unique_ptr<InputBufferPrivate> d_ptr;

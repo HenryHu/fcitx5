@@ -1,35 +1,26 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "xcbconnection.h"
-#include "config.h"
+#include <stdexcept>
+#include <fmt/format.h>
+#include <xcb/xcb_aux.h>
+#include <xcb/xfixes.h>
 #include "fcitx-utils/log.h"
 #include "fcitx-utils/stringutils.h"
 #include "fcitx/inputcontext.h"
 #include "fcitx/inputcontextmanager.h"
 #include "fcitx/inputmethodmanager.h"
 #include "fcitx/misc_p.h"
+#include "notifications_public.h"
 #include "xcbconvertselection.h"
+#include "xcbeventreader.h"
 #include "xcbkeyboard.h"
 #include "xcbmodule.h"
-#include <xcb/xcb_aux.h>
-#include <xcb/xfixes.h>
 
 namespace fcitx {
 
@@ -55,13 +46,6 @@ XCBConnection::XCBConnection(XCBModule *xcb, const std::string &name)
 
     xcb_set_selection_owner(conn_.get(), w, atom_, XCB_CURRENT_TIME);
     serverWindow_ = w;
-    int fd = xcb_get_file_descriptor(conn_.get());
-    auto &eventLoop = parent_->instance()->eventLoop();
-    ioEvent_ = eventLoop.addIOEvent(
-        fd, IOEventFlag::In, [this](EventSource *, int, IOEventFlags flags) {
-            onIOEvent(flags);
-            return true;
-        });
 
     eventHandlers_.emplace_back(parent_->instance()->watchEvent(
         EventType::InputMethodGroupChanged, EventWatcherPhase::Default,
@@ -84,7 +68,7 @@ XCBConnection::XCBConnection(XCBModule *xcb, const std::string &name)
             xcb_xfixes_query_version_cookie_t xfixes_query_cookie =
                 xcb_xfixes_query_version(conn_.get(), XCB_XFIXES_MAJOR_VERSION,
                                          XCB_XFIXES_MINOR_VERSION);
-            auto xfixes_query = makeXCBReply(xcb_xfixes_query_version_reply(
+            auto xfixes_query = makeUniqueCPtr(xcb_xfixes_query_version_reply(
                 conn_.get(), xfixes_query_cookie, nullptr));
             if (xfixes_query && xfixes_query->major_version >= 2) {
                 hasXFixes_ = true;
@@ -110,6 +94,7 @@ XCBConnection::XCBConnection(XCBModule *xcb, const std::string &name)
         });
     auto &imManager = parent_->instance()->inputMethodManager();
     setDoGrab(imManager.groupCount() > 1);
+    reader_ = std::make_unique<XCBEventReader>(this);
 }
 
 XCBConnection::~XCBConnection() {
@@ -123,7 +108,6 @@ XCBConnection::~XCBConnection() {
 
 void XCBConnection::setDoGrab(bool doGrab) {
     if (doGrab_ != doGrab) {
-        ;
         if (doGrab) {
             grabKey();
         } else {
@@ -135,45 +119,34 @@ void XCBConnection::setDoGrab(bool doGrab) {
 
 void XCBConnection::grabKey(const Key &key) {
     xcb_keysym_t sym = static_cast<xcb_keysym_t>(key.sym());
-    uint modifiers = key.states();
-    std::unique_ptr<xcb_keycode_t, decltype(&std::free)> keycode(
-        xcb_key_symbols_get_keycode(syms_.get(), sym), &std::free);
+    uint32_t modifiers = key.states();
+    UniqueCPtr<xcb_keycode_t> keycode(
+        xcb_key_symbols_get_keycode(syms_.get(), sym));
     if (!keycode) {
-        FCITX_LOG(Warn) << "Can not convert keyval=" << sym << " to keycode!";
+        FCITX_XCB_WARN() << "Can not convert keyval=" << sym << " to keycode!";
     } else {
-        FCITX_LOG(Debug) << "grab keycode " << static_cast<int>(*keycode)
-                         << " modifiers " << modifiers;
+        FCITX_XCB_DEBUG() << "grab keycode " << static_cast<int>(*keycode)
+                          << " modifiers " << modifiers;
         auto cookie =
             xcb_grab_key_checked(conn_.get(), true, root_, modifiers, *keycode,
                                  XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-        xcb_generic_error_t *error = xcb_request_check(conn_.get(), cookie);
+        UniqueCPtr<xcb_generic_error_t> error(
+            xcb_request_check(conn_.get(), cookie));
         if (error) {
-            FCITX_LOG(Debug)
+            FCITX_XCB_DEBUG()
                 << "grab key error " << static_cast<int>(error->error_code)
                 << " " << root_;
         }
-        free(error);
-    }
-}
-
-void addEventMaskToWindow(xcb_connection_t *conn, xcb_window_t wid,
-                          uint32_t mask) {
-    auto get_attr_cookie = xcb_get_window_attributes(conn, wid);
-    auto get_attr_reply = makeXCBReply(
-        xcb_get_window_attributes_reply(conn, get_attr_cookie, nullptr));
-    if (get_attr_reply && (get_attr_reply->your_event_mask & mask) != mask) {
-        const uint32_t newMask = get_attr_reply->your_event_mask | mask;
-        xcb_change_window_attributes(conn, wid, XCB_CW_EVENT_MASK, &newMask);
     }
 }
 
 void XCBConnection::ungrabKey(const Key &key) {
     xcb_keysym_t sym = static_cast<xcb_keysym_t>(key.sym());
-    uint modifiers = key.states();
-    std::unique_ptr<xcb_keycode_t, decltype(&std::free)> keycode(
-        xcb_key_symbols_get_keycode(syms_.get(), sym), &std::free);
+    uint32_t modifiers = key.states();
+    UniqueCPtr<xcb_keycode_t> keycode(
+        xcb_key_symbols_get_keycode(syms_.get(), sym));
     if (!keycode) {
-        FCITX_LOG(Warn) << "Can not convert keyval=" << sym << " to keycode!";
+        FCITX_WARN() << "Can not convert keyval=" << sym << " to keycode!";
     } else {
         xcb_ungrab_key(conn_.get(), *keycode, root_, modifiers);
     }
@@ -181,7 +154,7 @@ void XCBConnection::ungrabKey(const Key &key) {
 }
 
 void XCBConnection::grabKey() {
-    FCITX_LOG(Debug) << "Grab key for X11 display: " << name_;
+    FCITX_DEBUG() << "Grab key for X11 display: " << name_;
     auto &globalConfig = parent_->instance()->globalConfig();
     forwardGroup_ = globalConfig.enumerateGroupForwardKeys();
     backwardGroup_ = globalConfig.enumerateGroupBackwardKeys();
@@ -206,13 +179,14 @@ void XCBConnection::ungrabKey() {
 }
 
 bool XCBConnection::grabXKeyboard() {
-    if (keyboardGrabbed_)
+    if (keyboardGrabbed_) {
         return false;
-    FCITX_LOG(Debug) << "Grab keyboard for display: " << name_;
+    }
+    FCITX_DEBUG() << "Grab keyboard for display: " << name_;
     auto cookie = xcb_grab_keyboard(conn_.get(), false, root_, XCB_CURRENT_TIME,
                                     XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
     auto reply =
-        makeXCBReply(xcb_grab_keyboard_reply(conn_.get(), cookie, nullptr));
+        makeUniqueCPtr(xcb_grab_keyboard_reply(conn_.get(), cookie, nullptr));
 
     if (reply && reply->status == XCB_GRAB_STATUS_SUCCESS) {
         keyboardGrabbed_ = true;
@@ -224,29 +198,17 @@ void XCBConnection::ungrabXKeyboard() {
     if (!keyboardGrabbed_) {
         // grabXKeyboard() may fail sometimes, so don't fail, but at least warn
         // anyway
-        FCITX_LOG(Debug)
-            << "ungrabXKeyboard() called but keyboard not grabbed!";
+        FCITX_DEBUG() << "ungrabXKeyboard() called but keyboard not grabbed!";
     }
-    FCITX_LOG(Debug) << "Ungrab keyboard for display: " << name_;
+    FCITX_DEBUG() << "Ungrab keyboard for display: " << name_;
     keyboardGrabbed_ = false;
     xcb_ungrab_keyboard(conn_.get(), XCB_CURRENT_TIME);
     xcb_flush(conn_.get());
 }
 
-auto nextXCBEvent(xcb_connection_t *conn, IOEventFlags flags) {
-    if (flags.test(IOEventFlag::In)) {
-        return makeXCBReply(xcb_poll_for_event(conn));
-    }
-    return makeXCBReply(xcb_poll_for_queued_event(conn));
-}
-
-void XCBConnection::onIOEvent(IOEventFlags flags) {
-    if (int err = xcb_connection_has_error(conn_.get())) {
-        FCITX_WARN() << "XCB connection \"" << name_ << "\" got error: " << err;
-        return parent_->removeConnection(name_);
-    }
-
-    while (auto event = nextXCBEvent(conn_.get(), flags)) {
+void XCBConnection::processEvent() {
+    auto events = reader_->events();
+    for (const auto &event : events) {
         for (auto &callback : filters_.view()) {
             if (callback(conn_.get(), event.get())) {
                 break;
@@ -254,13 +216,14 @@ void XCBConnection::onIOEvent(IOEventFlags flags) {
         }
     }
     xcb_flush(conn_.get());
+    reader_->wakeUp();
 }
 
 bool XCBConnection::filterEvent(xcb_connection_t *,
                                 xcb_generic_event_t *event) {
     uint8_t response_type = event->response_type & ~0x80;
     if (response_type == XCB_CLIENT_MESSAGE) {
-        auto client_message =
+        auto *client_message =
             reinterpret_cast<xcb_client_message_event_t *>(event);
         if (client_message->window == serverWindow_ &&
             client_message->format == 8 && client_message->type == atom_) {
@@ -276,14 +239,14 @@ bool XCBConnection::filterEvent(xcb_connection_t *,
         return true;
     } else if (hasXFixes_ && response_type == XCB_XFIXES_SELECTION_NOTIFY +
                                                   xfixesFirstEvent_) {
-        auto selectionNofity =
+        auto *selectionNofity =
             reinterpret_cast<xcb_xfixes_selection_notify_event_t *>(event);
         auto callbacks = selections_.view(selectionNofity->selection);
         for (auto &callback : callbacks) {
             callback(selectionNofity->selection);
         }
     } else if (response_type == XCB_SELECTION_NOTIFY) {
-        auto selectionNotify =
+        auto *selectionNotify =
             reinterpret_cast<xcb_selection_notify_event_t *>(event);
         if (selectionNotify->requestor != serverWindow_) {
             return false;
@@ -300,7 +263,7 @@ bool XCBConnection::filterEvent(xcb_connection_t *,
                     conn_.get(), false, serverWindow_,
                     selectionNotify->property, XCB_ATOM_ANY, 0, bufLimit);
 
-                auto reply = makeXCBReply(xcb_get_property_reply(
+                auto reply = makeUniqueCPtr(xcb_get_property_reply(
                     conn_.get(), get_prop_cookie, nullptr));
                 const char *data = nullptr;
                 int length = 0;
@@ -320,9 +283,9 @@ bool XCBConnection::filterEvent(xcb_connection_t *,
     (XCB_MOD_MASK_SHIFT | XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_1 |              \
      XCB_MOD_MASK_4)
 
-        auto keypress = reinterpret_cast<xcb_key_press_event_t *>(event);
+        auto *keypress = reinterpret_cast<xcb_key_press_event_t *>(event);
         if (keypress->event == root_) {
-            FCITX_LOG(Debug) << "Received key event from root";
+            FCITX_DEBUG() << "Received key event from root";
             auto sym = xcb_key_press_lookup_keysym(syms_.get(), keypress, 0);
             auto state = keypress->state;
             bool forward;
@@ -345,7 +308,7 @@ bool XCBConnection::filterEvent(xcb_connection_t *,
             return true;
         }
     } else if (response_type == XCB_KEY_RELEASE) {
-        auto keyrelease = reinterpret_cast<xcb_key_release_event_t *>(event);
+        auto *keyrelease = reinterpret_cast<xcb_key_release_event_t *>(event);
         if (keyrelease->event == root_) {
             keyRelease(keyrelease);
             return true;
@@ -364,21 +327,23 @@ void XCBConnection::keyRelease(const xcb_key_release_event_t *event) {
     // released
     // key is this modifier - if yes, release the grab
     int mod_index = -1;
-    for (int i = XCB_MAP_INDEX_SHIFT; i <= XCB_MAP_INDEX_5; ++i)
+    for (int i = XCB_MAP_INDEX_SHIFT; i <= XCB_MAP_INDEX_5; ++i) {
         if ((mk & (1 << i)) != 0) {
-            if (mod_index >= 0)
+            if (mod_index >= 0) {
                 return;
+            }
             mod_index = i;
         }
+    }
     bool release = false;
-    if (mod_index == -1)
+    if (mod_index == -1) {
         release = true;
-    else {
+    } else {
         auto cookie = xcb_get_modifier_mapping(conn_.get());
-        auto reply =
-            xcb_get_modifier_mapping_reply(conn_.get(), cookie, nullptr);
+        auto reply = makeUniqueCPtr(
+            xcb_get_modifier_mapping_reply(conn_.get(), cookie, nullptr));
         if (reply) {
-            auto keycodes = xcb_get_modifier_mapping_keycodes(reply);
+            auto *keycodes = xcb_get_modifier_mapping_keycodes(reply.get());
             for (int i = 0; i < reply->keycodes_per_modifier; i++) {
                 if (keycodes[reply->keycodes_per_modifier * mod_index + i] ==
                     event->detail) {
@@ -386,7 +351,6 @@ void XCBConnection::keyRelease(const xcb_key_release_event_t *event) {
                 }
             }
         }
-        free(reply);
     }
     if (!release) {
         return;
@@ -397,7 +361,7 @@ void XCBConnection::keyRelease(const xcb_key_release_event_t *event) {
 }
 
 void XCBConnection::acceptGroupChange() {
-    FCITX_LOG(Debug) << "Accept group change";
+    FCITX_DEBUG() << "Accept group change";
     if (keyboardGrabbed_) {
         ungrabXKeyboard();
     }
@@ -417,7 +381,16 @@ void XCBConnection::navigateGroup(bool forward) {
     }
     groupIndex_ = (groupIndex_ + (forward ? 1 : imManager.groupCount() - 1)) %
                   imManager.groupCount();
-    FCITX_LOG(Debug) << "Switch to group " << groupIndex_;
+    FCITX_DEBUG() << "Switch to group " << groupIndex_;
+
+    if (parent_->notifications()) {
+        parent_->notifications()->call<INotifications::showTip>(
+            "enumerate-group", _("Input Method"), "input-keyboard",
+            _("Switch group"),
+            fmt::format(_("Switch group to {0}"),
+                        imManager.groups()[groupIndex_]),
+            3000);
+    }
 }
 
 std::unique_ptr<HandlerTableEntry<XCBEventFilter>>
@@ -439,14 +412,14 @@ void XCBConnection::removeSelectionAtom(xcb_atom_t atom) {
 }
 
 xcb_atom_t XCBConnection::atom(const std::string &atomName, bool exists) {
-    if (auto atomP = findValue(atomCache_, atomName)) {
+    if (auto *atomP = findValue(atomCache_, atomName)) {
         return *atomP;
     }
 
     xcb_intern_atom_cookie_t cookie =
         xcb_intern_atom(conn_.get(), exists, atomName.size(), atomName.c_str());
     auto reply =
-        makeXCBReply(xcb_intern_atom_reply(conn_.get(), cookie, nullptr));
+        makeUniqueCPtr(xcb_intern_atom_reply(conn_.get(), cookie, nullptr));
     xcb_atom_t result = XCB_ATOM_NONE;
     if (reply) {
         result = reply->atom;
@@ -492,7 +465,7 @@ XCBConnection::convertSelection(const std::string &selection,
     }
 
     return convertSelections_.add(this, atomValue, typeAtom, propertyAtom,
-                                  callback);
+                                  std::move(callback));
 }
 
 Instance *XCBConnection::instance() { return parent_->instance(); }

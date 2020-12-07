@@ -1,32 +1,20 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_ICONTHEME_H_
 #define _FCITX_UTILS_ICONTHEME_H_
 
-#include "fcitxcore_export.h"
 #include <cstdlib>
+#include <memory>
 #include <fcitx-config/enum.h>
 #include <fcitx-config/rawconfig.h>
 #include <fcitx-utils/i18nstring.h>
 #include <fcitx-utils/macros.h>
 #include <fcitx-utils/standardpath.h>
-#include <memory>
+#include "fcitxcore_export.h"
 
 /// \addtogroup FcitxUtils
 /// \{
@@ -75,7 +63,7 @@ public:
     IconTheme(const StandardPath &standardPath = StandardPath::global());
     FCITX_DECLARE_VIRTUAL_DTOR_MOVE(IconTheme);
 
-    std::string findIcon(const std::string &iconName, uint desiredSize,
+    std::string findIcon(const std::string &iconName, unsigned int desiredSize,
                          int scale = 1,
                          const std::vector<std::string> &extensions = {
                              ".svg", ".png", ".xpm"});
@@ -90,6 +78,9 @@ public:
     FCITX_DECLARE_READ_ONLY_PROPERTY(std::vector<IconThemeDirectory>,
                                      scaledDirectories);
     FCITX_DECLARE_READ_ONLY_PROPERTY(std::string, example);
+
+    /// Rename fcitx-* icon to org.fcitx.Fcitx5.fcitx-* if in flatpak
+    static std::string iconName(const std::string &icon, bool inFlatpak);
 
 private:
     IconTheme(const std::string &name, IconTheme *parent,

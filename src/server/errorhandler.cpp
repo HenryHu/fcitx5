@@ -1,23 +1,10 @@
-//
-// Copyright (C) 2002~2005 by Yuking
-// yuking_net@sohu.com
-// Copyright (C) 2010~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2002-2005 Yuking <yuking_net@sohu.com>
+ * SPDX-FileCopyrightText: 2010-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "config.h"
 
@@ -27,9 +14,9 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "errorhandler.h"
 #include "fcitx-utils/fs.h"
 #include "fcitx/instance.h"
+#include "errorhandler.h"
 
 #if defined(EXECINFO_FOUND)
 #include <execinfo.h>
@@ -108,8 +95,9 @@ static inline void BufferAppendUInt64(MinimalBuffer *buffer, uint64_t number,
 }
 
 static inline void _write_string_len(int fd, const char *str, size_t len) {
-    if (fd >= 0 && fd != STDERR_FILENO)
+    if (fd >= 0 && fd != STDERR_FILENO) {
         fcitx::fs::safeWrite(fd, str, len);
+    }
     fcitx::fs::safeWrite(STDERR_FILENO, str, len);
 }
 
@@ -122,14 +110,16 @@ static inline void _write_buffer(int fd, const MinimalBuffer *buffer) {
 }
 
 void OnException(int signo) {
-    if (signo == SIGCHLD)
+    if (signo == SIGCHLD) {
         return;
+    }
 
     MinimalBuffer buffer;
     int fd = -1;
 
-    if (crashlog.size() && (signo == SIGSEGV || signo == SIGABRT))
+    if (!crashlog.empty() && (signo == SIGSEGV || signo == SIGABRT)) {
         fd = open(crashlog.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    }
 
     /* print signal info */
     BufferReset(&buffer);
@@ -161,12 +151,14 @@ void OnException(int signo) {
 
     int size = backtrace(array, BACKTRACE_SIZE);
     backtrace_symbols_fd(array, size, STDERR_FILENO);
-    if (fd >= 0)
+    if (fd >= 0) {
         backtrace_symbols_fd(array, size, fd);
+    }
 #endif
 
-    if (fd >= 0)
+    if (fd >= 0) {
         close(fd);
+    }
 
     switch (signo) {
     case SIGABRT:
@@ -178,8 +170,9 @@ void OnException(int signo) {
         break;
     default: {
         uint8_t sig = 0;
-        if (signo < 0xff)
+        if (signo < 0xff) {
             sig = (uint8_t)(signo & 0xff);
+        }
         fcitx::fs::safeWrite(selfpipe[1], &sig, 1);
         signal(signo, OnException);
     } break;

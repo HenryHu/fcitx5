@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "statusarea.h"
 #include "action.h"
@@ -29,7 +17,7 @@ public:
     SimpleAction separatorBeforeIM, separatorAfterIM;
     std::unordered_map<Action *, std::vector<ScopedConnection>> actions_;
     InputContext *ic_;
-    void update() {
+    void update() const {
         ic_->updateUserInterface(UserInterfaceComponent::StatusArea);
     }
 };
@@ -60,7 +48,7 @@ void StatusArea::addAction(StatusGroup group, Action *action) {
     }
     d->actions_[action].emplace_back(
         action->connect<ObjectDestroyed>([this, d](void *p) {
-            auto action = static_cast<Action *>(p);
+            auto *action = static_cast<Action *>(p);
             removeAction(action);
             d->update();
         }));
@@ -90,14 +78,14 @@ void StatusArea::clear() {
 }
 
 void StatusArea::clearGroup(StatusGroup group) {
-    for (auto action : actions(group)) {
+    for (auto *action : actions(group)) {
         removeAction(action);
     }
 }
 std::vector<Action *> StatusArea::allActions() const {
     FCITX_D();
     std::vector<Action *> result;
-    for (auto ele : childs()) {
+    for (auto *ele : childs()) {
         if (ele == &d->separatorBeforeIM || ele == &d->separatorAfterIM) {
             continue;
         }
@@ -111,7 +99,7 @@ std::vector<Action *> StatusArea::actions(StatusGroup group) const {
     std::vector<Action *> result;
     switch (group) {
     case StatusGroup::BeforeInputMethod:
-        for (auto ele : childs()) {
+        for (auto *ele : childs()) {
             if (ele == &d->separatorBeforeIM) {
                 break;
             }
@@ -120,7 +108,7 @@ std::vector<Action *> StatusArea::actions(StatusGroup group) const {
         break;
     case StatusGroup::InputMethod: {
         bool push = false;
-        for (auto ele : childs()) {
+        for (auto *ele : childs()) {
             if (ele == &d->separatorBeforeIM) {
                 push = true;
                 continue;
@@ -136,7 +124,7 @@ std::vector<Action *> StatusArea::actions(StatusGroup group) const {
     }
     case StatusGroup::AfterInputMethod: {
         bool push = false;
-        for (auto ele : childs()) {
+        for (auto *ele : childs()) {
             if (ele == &d->separatorAfterIM) {
                 push = true;
                 continue;

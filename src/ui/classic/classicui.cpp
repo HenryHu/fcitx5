@@ -1,24 +1,14 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "classicui.h"
+#include <fcntl.h>
 #include "fcitx-config/iniparser.h"
+#include "fcitx-utils/misc_p.h"
 #include "fcitx-utils/standardpath.h"
 #include "fcitx-utils/utf8.h"
 #include "fcitx/inputcontext.h"
@@ -26,18 +16,22 @@
 #include "fcitx/instance.h"
 #include "fcitx/userinterfacemanager.h"
 #include "notificationitem_public.h"
-#include "waylandui.h"
+#ifdef ENABLE_X11
 #include "xcbui.h"
-#include <fcntl.h>
+#endif
+#ifdef WAYLAND_FOUND
+#include "waylandui.h"
+#endif
 
-namespace fcitx {
-namespace classicui {
+namespace fcitx::classicui {
 
-ClassicUI::ClassicUI(Instance *instance)
-    : UserInterface(), instance_(instance) {
+FCITX_DEFINE_LOG_CATEGORY(classicui_logcategory, "classicui");
+
+ClassicUI::ClassicUI(Instance *instance) : instance_(instance) {
     reloadConfig();
 
-    if (auto xcbAddon = xcb()) {
+#ifdef ENABLE_X11
+    if (auto *xcbAddon = xcb()) {
         xcbCreatedCallback_ =
             xcbAddon->call<IXCBModule::addConnectionCreatedCallback>(
                 [this](const std::string &name, xcb_connection_t *conn,
@@ -51,8 +45,10 @@ ClassicUI::ClassicUI(Instance *instance)
                     uis_.erase("x11:" + name);
                 });
     }
+#endif
 
-    if (auto waylandAddon = wayland()) {
+#ifdef WAYLAND_FOUND
+    if (auto *waylandAddon = wayland()) {
         waylandCreatedCallback_ =
             waylandAddon->call<IWaylandModule::addConnectionCreatedCallback>(
                 [this](const std::string &name, wl_display *display,
@@ -69,13 +65,17 @@ ClassicUI::ClassicUI(Instance *instance)
                     uis_.erase("wayland:" + name);
                 });
     }
+#endif
 }
 
 ClassicUI::~ClassicUI() {}
 
 void ClassicUI::reloadConfig() {
     readAsIni(config_, "conf/classicui.conf");
+    reloadTheme();
+}
 
+void ClassicUI::reloadTheme() {
     auto themeConfigFile = StandardPath::global().open(
         StandardPath::Type::PkgData,
         stringutils::joinPath("themes", *config_.theme, "theme.conf"),
@@ -85,26 +85,51 @@ void ClassicUI::reloadConfig() {
     theme_.load(*config_.theme, themeConfig);
 }
 
-AddonInstance *ClassicUI::xcb() {
-    auto &addonManager = instance_->addonManager();
-    return addonManager.addon("xcb");
-}
-
-AddonInstance *ClassicUI::wayland() {
-    auto &addonManager = instance_->addonManager();
-    return addonManager.addon("wayland");
-}
-
 void ClassicUI::suspend() {
     suspended_ = true;
     for (auto &p : uis_) {
         p.second->suspend();
     }
 
-    if (auto sni = notificationitem()) {
+    if (auto *sni = notificationitem()) {
         sni->call<INotificationItem::disable>();
     }
     eventHandlers_.clear();
+}
+
+const Configuration *ClassicUI::getConfig() const {
+    std::set<std::string> themeDirs;
+    StandardPath::global().scanFiles(
+        StandardPath::Type::PkgData, "themes",
+        [&themeDirs](const std::string &path, const std::string &dir, bool) {
+            if (fs::isdir(stringutils::joinPath(dir, path))) {
+                themeDirs.insert(path);
+            }
+            return true;
+        });
+    std::map<std::string, std::string> themes;
+    for (const auto &themeName : themeDirs) {
+        auto file = StandardPath::global().open(
+            StandardPath::Type::PkgData,
+            stringutils::joinPath("themes", themeName, "theme.conf"), O_RDONLY);
+        if (file.fd() < 0) {
+            continue;
+        }
+        RawConfig config;
+        readFromIni(config, file.fd());
+
+        ThemeConfig themeConfig;
+        themeConfig.load(config);
+        if (!themeConfig.metadata.value()
+                 .name.value()
+                 .defaultString()
+                 .empty()) {
+            themes[themeName] =
+                themeConfig.metadata.value().name.value().match();
+        }
+    }
+    config_.theme.annotation().setThemes({themes.begin(), themes.end()});
+    return &config_;
 }
 
 UIInterface *ClassicUI::uiForEvent(Event &event) {
@@ -140,7 +165,7 @@ void ClassicUI::resume() {
         p.second->resume();
     }
 
-    if (auto sni = notificationitem()) {
+    if (auto *sni = notificationitem()) {
         if (!sniHandler_) {
             sniHandler_ =
                 sni->call<INotificationItem::watch>([this](bool enable) {
@@ -163,7 +188,7 @@ void ClassicUI::resume() {
     eventHandlers_.emplace_back(instance_->watchEvent(
         EventType::InputContextCursorRectChanged, EventWatcherPhase::Default,
         [this](Event &event) {
-            if (auto ui = uiForEvent(event)) {
+            if (auto *ui = uiForEvent(event)) {
                 auto &icEvent = static_cast<InputContextEvent &>(event);
                 ui->updateCursor(icEvent.inputContext());
             }
@@ -171,7 +196,7 @@ void ClassicUI::resume() {
     eventHandlers_.emplace_back(instance_->watchEvent(
         EventType::InputContextFocusIn, EventWatcherPhase::Default,
         [this](Event &event) {
-            if (auto ui = uiForEvent(event)) {
+            if (auto *ui = uiForEvent(event)) {
                 auto &icEvent = static_cast<InputContextEvent &>(event);
                 ui->updateCursor(icEvent.inputContext());
                 ui->updateCurrentInputMethod(icEvent.inputContext());
@@ -180,7 +205,7 @@ void ClassicUI::resume() {
     eventHandlers_.emplace_back(instance_->watchEvent(
         EventType::InputContextSwitchInputMethod, EventWatcherPhase::Default,
         [this](Event &event) {
-            if (auto ui = uiForEvent(event)) {
+            if (auto *ui = uiForEvent(event)) {
                 auto &icEvent = static_cast<InputContextEvent &>(event);
                 ui->updateCurrentInputMethod(icEvent.inputContext());
             }
@@ -190,7 +215,7 @@ void ClassicUI::resume() {
         [this](Event &) {
             instance_->inputContextManager().foreachFocused(
                 [this](InputContext *ic) {
-                    if (auto ui = uiForInputContext(ic)) {
+                    if (auto *ui = uiForInputContext(ic)) {
                         ui->updateCurrentInputMethod(ic);
                     }
                     return true;
@@ -200,12 +225,30 @@ void ClassicUI::resume() {
 
 void ClassicUI::update(UserInterfaceComponent component,
                        InputContext *inputContext) {
-    auto iter = uis_.find(inputContext->display());
-    if (iter == uis_.end()) {
-        return;
+    UIInterface *ui = nullptr;
+    if (stringutils::startsWith(inputContext->display(), "wayland:") &&
+        !stringutils::startsWith(inputContext->frontend(), "wayland")) {
+        // If display is wayland, but frontend is not, then we can only do X11
+        // for now, though position is wrong. We don't know which is xwayland
+        // unfortunately, hopefully main display is X wayland.
+        // The position will be wrong anyway.
+#ifdef ENABLE_X11
+        auto mainX11Display = xcb()->call<IXCBModule::mainDisplay>();
+        if (!mainX11Display.empty()) {
+            if (auto *uiPtr = findValue(uis_, "x11:" + mainX11Display)) {
+                ui = uiPtr->get();
+            }
+        }
+#endif
+    } else {
+        if (auto *uiPtr = findValue(uis_, inputContext->display())) {
+            ui = uiPtr->get();
+        }
     }
-    auto ui = iter->second.get();
-    ui->update(component, inputContext);
+
+    if (ui) {
+        ui->update(component, inputContext);
+    }
 }
 
 class ClassicUIFactory : public AddonFactory {
@@ -214,7 +257,50 @@ public:
         return new ClassicUI(manager->instance());
     }
 };
-} // namespace classicui
-} // namespace fcitx
+} // namespace fcitx::classicui
+
+const fcitx::Configuration *
+fcitx::classicui::ClassicUI::getSubConfig(const std::string &path) const {
+    if (!stringutils::startsWith(path, "theme/")) {
+        return nullptr;
+    }
+
+    auto name = path.substr(6);
+    if (name.empty()) {
+        return nullptr;
+    }
+
+    if (name == *config_.theme) {
+        return &theme_;
+    }
+
+    auto themeConfigFile = StandardPath::global().open(
+        StandardPath::Type::PkgData,
+        stringutils::joinPath("themes", name, "theme.conf"), O_RDONLY);
+    RawConfig themeConfig;
+    readFromIni(themeConfig, themeConfigFile.fd());
+    subconfigTheme_.load(name, themeConfig);
+    return &subconfigTheme_;
+}
+
+void fcitx::classicui::ClassicUI::setSubConfig(const std::string &path,
+                                               const fcitx::RawConfig &config) {
+    if (!stringutils::startsWith(path, "theme/")) {
+        return;
+    }
+    auto name = path.substr(6);
+    if (name.empty()) {
+        return;
+    }
+
+    auto &theme = name == *config_.theme ? theme_ : subconfigTheme_;
+    if (&theme == &subconfigTheme_) {
+        // Fill the old value, this help with Name field..
+        getSubConfig(path);
+    }
+    theme.load(name, config);
+    safeSaveAsIni(theme, StandardPath::Type::PkgData,
+                  stringutils::joinPath("themes", name, "theme.conf"));
+}
 
 FCITX_ADDON_FACTORY(fcitx::classicui::ClassicUIFactory);

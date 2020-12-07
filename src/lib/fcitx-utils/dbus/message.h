@@ -1,45 +1,41 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_DBUS_MESSAGE_H_
 #define _FCITX_UTILS_DBUS_MESSAGE_H_
 
 #include <cassert>
-#include <fcitx-utils/dbus/message_details.h>
-#include <fcitx-utils/log.h>
-#include <fcitx-utils/macros.h>
-#include <fcitx-utils/metastring.h>
-#include <fcitx-utils/tuplehelpers.h>
-#include <fcitx-utils/unixfd.h>
 #include <functional>
 #include <memory>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <vector>
+#include <fcitx-utils/dbus/message_details.h>
+#include <fcitx-utils/log.h>
+#include <fcitx-utils/macros.h>
+#include <fcitx-utils/metastring.h>
+#include <fcitx-utils/tuplehelpers.h>
+#include <fcitx-utils/unixfd.h>
 
-namespace fcitx {
+/// \addtogroup FcitxUtils
+/// \{
+/// \file
+/// \brief API for DBus message.
 
-namespace dbus {
+namespace fcitx::dbus {
 
 class Message;
 class Variant;
 
+/**
+ * A type to represent DBus struct.
+ *
+ * It is used for message serialization.
+ */
 template <typename... Args>
 struct DBusStruct {
     typedef std::tuple<Args...> tuple_type;
@@ -51,7 +47,7 @@ struct DBusStruct {
         typename = typename std::enable_if_t<
             sizeof...(Elements) != 0 ||
             !std::is_same<typename std::decay_t<Element>, DBusStruct>::value>>
-    DBusStruct(Element &&ele, Elements &&... elements)
+    DBusStruct(Element &&ele, Elements &&...elements)
         : data_(std::forward<Element>(ele),
                 std::forward<Elements>(elements)...) {}
 
@@ -87,21 +83,21 @@ template <typename Value>
 class FCITXUTILS_EXPORT VariantHelper : public VariantHelperBase {
     std::shared_ptr<void> copy(const void *src) const override {
         if (src) {
-            auto s = static_cast<const Value *>(src);
+            auto *s = static_cast<const Value *>(src);
             return std::make_shared<Value>(*s);
         }
         return std::make_shared<Value>();
     }
     void serialize(dbus::Message &msg, const void *data) const override {
-        auto s = static_cast<const Value *>(data);
+        auto *s = static_cast<const Value *>(data);
         msg << *s;
     }
     void deserialize(dbus::Message &msg, void *data) const override {
-        auto s = static_cast<Value *>(data);
+        auto *s = static_cast<Value *>(data);
         msg >> *s;
     }
     void print(LogMessageBuilder &builder, const void *data) const override {
-        auto s = static_cast<const Value *>(data);
+        auto *s = static_cast<const Value *>(data);
         builder << *s;
     }
     std::string signature() const override {
@@ -109,14 +105,19 @@ class FCITXUTILS_EXPORT VariantHelper : public VariantHelperBase {
     }
 };
 
+/**
+ * A type to represent DBus dict entry.
+ *
+ * It is used for message serialization for type like a{sv}.
+ */
 template <typename Key, typename Value>
 class DictEntry {
 public:
     DictEntry() = default;
     DictEntry(const DictEntry &) = default;
-    DictEntry(DictEntry &&) = default;
+    DictEntry(DictEntry &&) noexcept = default;
     DictEntry &operator=(const DictEntry &other) = default;
-    DictEntry &operator=(DictEntry &&other) = default;
+    DictEntry &operator=(DictEntry &&other) noexcept = default;
 
     DictEntry(const Key &key, const Value &value) : key_(key), value_(value) {}
 
@@ -142,6 +143,9 @@ enum class MessageType {
     Error,
 };
 
+/**
+ * String like type object path 'o'
+ */
 class FCITXUTILS_EXPORT ObjectPath {
 public:
     ObjectPath(const std::string &path = {}) : path_(path) {}
@@ -152,6 +156,9 @@ private:
     std::string path_;
 };
 
+/**
+ * String like type object signature 'g'
+ */
 class FCITXUTILS_EXPORT Signature {
 public:
     Signature(const std::string &sig = {}) : sig_(sig) {}
@@ -162,6 +169,7 @@ private:
     std::string sig_;
 };
 
+/// Helper type for serialization, should not be used directly.
 class FCITXUTILS_EXPORT Container {
 public:
     enum class Type { Array, DictEntry, Struct, Variant };
@@ -177,6 +185,7 @@ private:
     Signature content_;
 };
 
+/// Helper type for serialization, should not be used directly.
 class FCITXUTILS_EXPORT ContainerEnd {};
 
 class MessagePrivate;
@@ -207,6 +216,9 @@ struct TupleMarshaller<Tuple, 0> {
     static void unmarshall(Message &, Tuple &) {}
 };
 
+/**
+ * Basic DBus type of a DBus message.
+ */
 class FCITXUTILS_EXPORT Message {
     friend class Bus;
 
@@ -214,46 +226,112 @@ public:
     Message();
 
     FCITX_DECLARE_VIRTUAL_DTOR_MOVE(Message);
+    /// Create a reply to this message.
     Message createReply() const;
+    /// Create a error reply to this message.
     Message createError(const char *name, const char *message) const;
 
+    /// Return the message type.
     MessageType type() const;
+
+    /// Check if the message is error.
     inline bool isError() const { return type() == MessageType::Error; }
 
+    /// Return the destination of the message.
     std::string destination() const;
+
+    /**
+     * Set the destination of the message.
+     *
+     * Should only be used on message to send.
+     *
+     * @param dest destination
+     */
     void setDestination(const std::string &dest);
 
+    /// Return the sender of the message.
     std::string sender() const;
+
+    /// Return the member of the message.
     std::string member() const;
+
+    /// Return the interface of the message.
     std::string interface() const;
+
+    /// Return the signature of the message
     std::string signature() const;
+
+    /**
+     * Return the error name of the message.
+     *
+     * Should only be used when message is a received error.
+     *
+     * @return DBus Error type
+     */
     std::string errorName() const;
+
+    /**
+     * Return the error message of the message.
+     *
+     * Should only be used when message is a received error.
+     *
+     * @return DBus Error type
+     */
     std::string errorMessage() const;
+
+    /// Return the path of the message.
     std::string path() const;
 
+    /**
+     * Return the low level internal pointer of the message.
+     *
+     * @see dbus::Bus::impl
+     *
+     * @return internal pointer
+     */
     void *nativeHandle() const;
 
+    /// Synchronously call a dbus method with a timeout in microseconds.
     Message call(uint64_t usec);
+
+    /**
+     * Asynchronously call a dbus method with a timeout in microseconds.
+     *
+     * @param usec timeout
+     * @param callback Callback function if anything happens.
+     */
     std::unique_ptr<Slot> callAsync(uint64_t usec, MessageCallback callback);
+
+    /// Send this message.
     bool send();
 
+    /// Check if message is not empty and has no serialization error.
     operator bool() const;
+
+    /// Check if message reaches end.
     bool end() const;
 
+    /// Clear serialization error.
     void resetError();
+
+    /// Rewind the message to the beginning.
     void rewind();
+
+    /// Skip the next data.
     void skip();
+
+    /// Check the next type of data in the message
     std::pair<char, std::string> peekType();
 
-    Message &operator<<(uint8_t i);
+    Message &operator<<(uint8_t v);
     Message &operator<<(bool b);
-    Message &operator<<(int16_t i);
-    Message &operator<<(uint16_t i);
-    Message &operator<<(int32_t i);
-    Message &operator<<(uint32_t i);
-    Message &operator<<(int64_t i);
-    Message &operator<<(uint64_t i);
-    Message &operator<<(double d);
+    Message &operator<<(int16_t v);
+    Message &operator<<(uint16_t v);
+    Message &operator<<(int32_t v);
+    Message &operator<<(uint32_t v);
+    Message &operator<<(int64_t v);
+    Message &operator<<(uint64_t v);
+    Message &operator<<(double v);
     Message &operator<<(const std::string &s);
     Message &operator<<(const char *s);
 
@@ -290,7 +368,6 @@ public:
             signature;
         if (*this << Container(Container::Type::Struct,
                                Signature(signature::data()))) {
-            ;
             TupleMarshaller<typename value_type::tuple_type,
                             sizeof...(Args)>::marshall(*this, t.data());
             if (*this) {
@@ -329,7 +406,6 @@ public:
             signature;
         if (*this << Container(Container::Type::Array,
                                Signature(signature::data()))) {
-            ;
             for (auto &v : t) {
                 *this << v;
             }
@@ -338,22 +414,22 @@ public:
         return *this;
     }
 
-    Message &operator>>(uint8_t &i);
+    Message &operator>>(uint8_t &v);
     Message &operator>>(bool &b);
-    Message &operator>>(int16_t &i);
-    Message &operator>>(uint16_t &i);
-    Message &operator>>(int32_t &i);
-    Message &operator>>(uint32_t &i);
-    Message &operator>>(int64_t &i);
-    Message &operator>>(uint64_t &i);
-    Message &operator>>(double &d);
+    Message &operator>>(int16_t &v);
+    Message &operator>>(uint16_t &v);
+    Message &operator>>(int32_t &v);
+    Message &operator>>(uint32_t &v);
+    Message &operator>>(int64_t &v);
+    Message &operator>>(uint64_t &v);
+    Message &operator>>(double &v);
     Message &operator>>(std::string &s);
     Message &operator>>(ObjectPath &o);
     Message &operator>>(Signature &s);
     Message &operator>>(UnixFD &fd);
     Message &operator>>(const Container &c);
     Message &operator>>(const ContainerEnd &c);
-    Message &operator>>(Variant &c);
+    Message &operator>>(Variant &variant);
 
     template <typename K, typename V>
     Message &operator>>(std::pair<K, V> &t) {
@@ -420,7 +496,6 @@ public:
             signature;
         if (*this >>
             Container(Container::Type::Array, Signature(signature::data()))) {
-            ;
             T temp;
             while (!end() && *this >> temp) {
                 t.push_back(temp);
@@ -461,8 +536,7 @@ static inline LogMessageBuilder &operator<<(LogMessageBuilder &builder,
     return builder;
 }
 
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus
 
 namespace std {
 

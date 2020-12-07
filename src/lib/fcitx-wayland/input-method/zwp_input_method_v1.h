@@ -1,9 +1,9 @@
 #ifndef ZWP_INPUT_METHOD_V1
 #define ZWP_INPUT_METHOD_V1
-#include "fcitx-utils/signals.h"
-#include "wayland-input-method-unstable-v1-client-protocol.h"
 #include <memory>
 #include <wayland-client.h>
+#include "fcitx-utils/signals.h"
+#include "wayland-input-method-unstable-v1-client-protocol.h"
 namespace fcitx {
 namespace wayland {
 class ZwpInputMethodContextV1;
@@ -31,7 +31,7 @@ private:
     fcitx::Signal<void(ZwpInputMethodContextV1 *)> deactivateSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<zwp_input_method_v1, decltype(&destructor)> data_;
+    UniqueCPtr<zwp_input_method_v1, &destructor> data_;
 };
 static inline zwp_input_method_v1 *rawPointer(ZwpInputMethodV1 *p) {
     return p ? static_cast<zwp_input_method_v1 *>(*p) : nullptr;

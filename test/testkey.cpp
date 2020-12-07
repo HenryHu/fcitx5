@@ -1,11 +1,17 @@
-#include "fcitx-utils/log.h"
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
 #include "fcitx-utils/key.h"
 #include "fcitx-utils/keynametable-compat.h"
 #include "fcitx-utils/keynametable.h"
+#include "fcitx-utils/log.h"
 
 #define CHECK_ARRAY_ORDER(ARRAY, COMPARE_FUNC)                                 \
     for (size_t i = 0; i < FCITX_ARRAY_SIZE(ARRAY) - 1; i++) {                 \
@@ -52,6 +58,15 @@ int main() {
                      .check(fcitx::Key("Alt+Shift+exclam").normalize()));
     FCITX_ASSERT(fcitx::Key("").sym() == FcitxKey_None);
     FCITX_ASSERT(fcitx::Key("-").sym() == FcitxKey_minus);
+    FCITX_ASSERT(fcitx::Key("`").sym() == FcitxKey_grave);
+    FCITX_ASSERT(fcitx::Key("Alt+Shift+Shift_L")
+                     .isReleaseOfModifier(fcitx::Key("Alt+Shift_L")));
+    FCITX_ASSERT(fcitx::Key("Alt+Shift+Meta_L")
+                     .isReleaseOfModifier(fcitx::Key("Alt+Shift_L")));
+    FCITX_ASSERT(fcitx::Key("Alt+Shift+Meta_R")
+                     .isReleaseOfModifier(fcitx::Key("Alt+Shift_L")));
+    FCITX_ASSERT(!fcitx::Key("Shift+Shift_L")
+                      .isReleaseOfModifier(fcitx::Key("Alt+Shift_L")));
 
     // Test complex parse
     auto keyList = fcitx::Key::keyListFromString(
@@ -83,7 +98,7 @@ int main() {
 
     keyList.clear();
     keyString = fcitx::Key::keyListToString(keyList);
-    FCITX_ASSERT(keyString == "");
+    FCITX_ASSERT(keyString.empty());
 
     fcitx::Key modifier = fcitx::Key("Control_L").normalize();
     FCITX_ASSERT(modifier.check(fcitx::Key("Control+Control_L")));
@@ -99,6 +114,10 @@ int main() {
     FCITX_ASSERT(
         fcitx::Key::fromKeyCode(25, fcitx::KeyState::Ctrl).toString() ==
         "Control+<25>");
+
+    FCITX_ASSERT(fcitx::Key("Hyper+a").toString() == "Hyper+a");
+    FCITX_ASSERT(fcitx::Key("Hyper+space")
+                     .check(FcitxKey_space, fcitx::KeyState::Hyper));
 
     FCITX_INFO() << fcitx::Key::keySymToString(
         FcitxKey_Insert, fcitx::KeyStringFormat::Localized);

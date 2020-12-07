@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_STANDARDPATH_H_
 #define _FCITX_UTILS_STANDARDPATH_H_
 
@@ -31,16 +19,16 @@
 /// \endcode
 /// Open all files under $XDG_CONFIG_{HOME,DIRS}/fcitx5/inputmethod/*.conf.
 
-#include "fcitxutils_export.h"
-#include <fcitx-utils/flags.h>
-#include <fcitx-utils/macros.h>
-#include <fcitx-utils/stringutils.h>
-#include <fcitx-utils/unixfd.h>
 #include <functional>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <fcitx-utils/flags.h>
+#include <fcitx-utils/macros.h>
+#include <fcitx-utils/stringutils.h>
+#include <fcitx-utils/unixfd.h>
+#include "fcitxutils_export.h"
 
 namespace fcitx {
 
@@ -107,7 +95,7 @@ struct FCITXUTILS_EXPORT User {
 struct FCITXUTILS_EXPORT Prefix {
     Prefix(const std::string &prefix_) : prefix(prefix_) {}
 
-    bool operator()(const std::string &path, const std::string &, bool) {
+    bool operator()(const std::string &path, const std::string &, bool) const {
         return stringutils::startsWith(path, prefix);
     }
 
@@ -118,7 +106,7 @@ struct FCITXUTILS_EXPORT Prefix {
 struct FCITXUTILS_EXPORT Suffix {
     Suffix(const std::string &suffix_) : suffix(suffix_) {}
 
-    bool operator()(const std::string &path, const std::string &, bool) {
+    bool operator()(const std::string &path, const std::string &, bool) const {
         return stringutils::endsWith(path, suffix);
     }
 
@@ -137,6 +125,7 @@ public:
     virtual ~StandardPathTempFile();
 
     int fd() const { return fd_.fd(); }
+    bool isValid() const { return fd_.isValid(); }
 
     const std::string &path() const { return path_; }
     const std::string &tempPath() const { return tempPath_; }
@@ -160,7 +149,10 @@ public:
     StandardPathFile(StandardPathFile &&other) = default;
     virtual ~StandardPathFile();
 
+    StandardPathFile &operator=(StandardPathFile &&other) = default;
+
     int fd() const { return fd_.fd(); }
+    bool isValid() const { return fd_.isValid(); }
 
     const std::string &path() const { return path_; }
 
@@ -181,7 +173,22 @@ typedef std::map<std::string, std::vector<StandardPathFile>>
 class FCITXUTILS_EXPORT StandardPath {
 public:
     /// \brief Enum for location type.
-    enum class Type { Config, PkgConfig, Data, Cache, Runtime, Addon, PkgData };
+    enum class Type {
+        /// Xdg Config dir
+        Config,
+        /// Xdg Config dir/fcitx5
+        PkgConfig,
+        /// Xdg data dir
+        Data,
+        /// Xdg cache dir
+        Cache,
+        /// Xdg runtime dir
+        Runtime,
+        /// addon shared library dir.
+        Addon,
+        /// Xdg data dir/fcitx5
+        PkgData
+    };
 
     StandardPath(bool skipFcitxPath = false);
     virtual ~StandardPath();
@@ -206,16 +213,16 @@ public:
     /// \brief Scan the directories of given type.
     ///
     /// Callback returns true to continue the scan.
-    void scanDirectories(
-        Type type,
-        std::function<bool(const std::string &path, bool user)> scanner) const;
+    void scanDirectories(Type type,
+                         const std::function<bool(const std::string &path,
+                                                  bool user)> &scanner) const;
 
     /// \brief Scan files scan file under [directory]/[path]
     /// \param path sub directory name.
     void scanFiles(Type type, const std::string &path,
-                   std::function<bool(const std::string &path,
-                                      const std::string &dir, bool user)>
-                       scanner) const;
+                   const std::function<bool(const std::string &path,
+                                            const std::string &dir, bool user)>
+                       &scanner) const;
 
     /// \brief Get user writable directory for given type.
     std::string userDirectory(Type type) const;
@@ -250,7 +257,7 @@ public:
     /// \param callback Callback function that accept a file descriptor and
     /// return whether the save if success or not.
     bool safeSave(Type type, const std::string &pathOrig,
-                  std::function<bool(int)> callback) const;
+                  const std::function<bool(int)> &callback) const;
 
     /// \brief Open all files match the first [directory]/[path].
     std::vector<StandardPathFile> openAll(Type type, const std::string &path,
@@ -293,6 +300,14 @@ private:
     std::unique_ptr<StandardPathPrivate> d_ptr;
     FCITX_DECLARE_PRIVATE(StandardPath);
 };
+
+static inline LogMessageBuilder &operator<<(LogMessageBuilder &builder,
+                                            const StandardPathFile &file) {
+    builder << "StandardPathFile(fd=" << file.fd() << ",path=" << file.path()
+            << ")";
+    return builder;
+}
+
 } // namespace fcitx
 
 #endif // _FCITX_UTILS_STANDARDPATH_H_

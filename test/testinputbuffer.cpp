@@ -1,29 +1,17 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "fcitx-utils/inputbuffer.h"
 #include "fcitx-utils/log.h"
 
 void test_basic(bool ascii) {
     using namespace fcitx;
     InputBuffer buffer(InputBufferOptions(ascii ? InputBufferOption::AsciiOnly
-                                                : InputBufferOption::None));
-    FCITX_ASSERT(buffer.size() == 0);
+                                                : InputBufferOption::NoOption));
+    FCITX_ASSERT(buffer.empty());
     FCITX_ASSERT(buffer.cursor() == 0);
     FCITX_ASSERT(buffer.cursorByChar() == 0);
     buffer.type('a');
@@ -78,7 +66,7 @@ void test_utf8() {
     buffer.clear();
     FCITX_ASSERT(buffer.cursorByChar() == 0);
     FCITX_ASSERT(buffer.cursor() == 0);
-    FCITX_ASSERT(buffer.size() == 0);
+    FCITX_ASSERT(buffer.empty());
 
     buffer.type('a');
     FCITX_ASSERT(buffer.userInput() == "a");
@@ -107,7 +95,7 @@ void test_utf8() {
     buffer.backspace();
     FCITX_ASSERT(buffer.userInput() == "a");
     buffer.backspace();
-    FCITX_ASSERT(buffer.userInput() == "");
+    FCITX_ASSERT(buffer.userInput().empty());
 }
 
 int main() {

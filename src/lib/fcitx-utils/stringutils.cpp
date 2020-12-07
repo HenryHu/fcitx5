@@ -1,38 +1,20 @@
-//
-// Copyright (C) 2015~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "stringutils.h"
+#include <climits>
+#include <cstring>
 #include "charutils.h"
 #include "macros.h"
-#include <climits>
-#include <string.h>
 
-namespace fcitx {
-namespace stringutils {
-
+namespace fcitx::stringutils {
 namespace details {
 
 std::string
 concatPieces(std::initializer_list<std::pair<const char *, std::size_t>> list) {
-    if (!list.size()) {
-        return {};
-    }
-
     std::size_t size = 0;
     for (auto pair : list) {
         size += pair.second;
@@ -113,8 +95,9 @@ trimInplace(const std::string &str) {
     }
 
     auto end = str.size();
-    while (end > start && charutils::isspace(str[end - 1]))
+    while (end > start && charutils::isspace(str[end - 1])) {
         --end;
+    }
 
     return {start, end};
 }
@@ -127,7 +110,6 @@ std::string trim(const std::string &str) {
 std::vector<std::string> split(const std::string &str, const std::string &delim,
                                SplitBehavior behavior) {
     std::vector<std::string> strings;
-
     std::string::size_type lastPos, pos;
     if (behavior == SplitBehavior::SkipEmpty) {
         lastPos = str.find_first_not_of(delim, 0);
@@ -161,7 +143,7 @@ std::vector<std::string> split(const std::string &str,
 
 std::string replaceAll(std::string str, const std::string &before,
                        const std::string &after) {
-    if (before.size() == 0) {
+    if (before.empty()) {
         return str;
     }
 
@@ -227,10 +209,10 @@ std::string replaceAll(std::string str, const std::string &before,
 
     if (!lastLen) {
         return str;
-    } else {
-        _COPY_AND_MOVE_ON(str, oldStringPos, str.size() - oldStringPos);
-        newString.resize(newStringPos);
     }
+
+    _COPY_AND_MOVE_ON(str, oldStringPos, str.size() - oldStringPos);
+    newString.resize(newStringPos);
 
     return newString;
 }
@@ -246,10 +228,12 @@ const char *backwardSearch(const char *haystack, size_t l, const char *needle,
         return nullptr;
     }
     size_t delta = l - ol;
-    if (from > l)
+    if (from > l) {
         return nullptr;
-    if (from > delta)
+    }
+    if (from > delta) {
         from = delta;
+    }
 
     const char *end = haystack;
     haystack += from;
@@ -265,8 +249,9 @@ const char *backwardSearch(const char *haystack, size_t l, const char *needle,
     hashHaystack -= *haystack;
     while (haystack >= end) {
         hashHaystack += *haystack;
-        if (hashHaystack == hashNeedle && memcmp(needle, haystack, ol) == 0)
+        if (hashHaystack == hashNeedle && memcmp(needle, haystack, ol) == 0) {
             return haystack;
+        }
         --haystack;
         REHASH(*(haystack + ol));
     }
@@ -281,13 +266,53 @@ char *backwardSearch(char *haystack, size_t l, const char *needle, size_t ol,
 
 size_t backwardSearch(const std::string &haystack, const std::string &needle,
                       size_t from) {
-    auto cstr = haystack.c_str();
-    auto result = backwardSearch(cstr, haystack.size(), needle.c_str(),
-                                 needle.size(), from);
+    const auto *cstr = haystack.c_str();
+    const auto *result = backwardSearch(cstr, haystack.size(), needle.c_str(),
+                                        needle.size(), from);
     if (result) {
         return result - cstr;
     }
     return std::string::npos;
 }
-} // namespace stringutils
-} // namespace fcitx
+
+enum class UnescapeState { NORMAL, ESCAPE };
+
+bool unescape(std::string &str, bool unescapeQuote) {
+    if (str.empty()) {
+        return true;
+    }
+
+    size_t i = 0;
+    size_t j = 0;
+    UnescapeState state = UnescapeState::NORMAL;
+    do {
+        switch (state) {
+        case UnescapeState::NORMAL:
+            if (str[i] == '\\') {
+                state = UnescapeState::ESCAPE;
+            } else {
+                str[j] = str[i];
+                j++;
+            }
+            break;
+        case UnescapeState::ESCAPE:
+            if (str[i] == '\\') {
+                str[j] = '\\';
+                j++;
+            } else if (str[i] == 'n') {
+                str[j] = '\n';
+                j++;
+            } else if (str[i] == '\"' && unescapeQuote) {
+                str[j] = '\"';
+                j++;
+            } else {
+                return false;
+            }
+            state = UnescapeState::NORMAL;
+            break;
+        }
+    } while (str[i++]);
+    str.resize(j - 1);
+    return true;
+}
+} // namespace fcitx::stringutils

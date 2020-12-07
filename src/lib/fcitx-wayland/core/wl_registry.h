@@ -1,10 +1,9 @@
 #ifndef WL_REGISTRY
 #define WL_REGISTRY
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlRegistry final {
 public:
     static constexpr const char *interface = "wl_registry";
@@ -34,11 +33,10 @@ private:
     fcitx::Signal<void(uint32_t)> globalRemoveSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_registry, decltype(&destructor)> data_;
+    UniqueCPtr<wl_registry, &destructor> data_;
 };
 static inline wl_registry *rawPointer(WlRegistry *p) {
     return p ? static_cast<wl_registry *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

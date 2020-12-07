@@ -1,4 +1,20 @@
+/*
+ * SPDX-FileCopyrightText: 2017-2020 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "buffer.h"
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <cassert>
+#include <stdexcept>
+#include <vector>
+#include <cairo/cairo.h>
+#include <wayland-client.h>
 #include "fcitx-utils/stringutils.h"
 #include "theme.h"
 #include "wl_buffer.h"
@@ -6,24 +22,12 @@
 #include "wl_shm.h"
 #include "wl_shm_pool.h"
 #include "wl_surface.h"
-#include <cairo/cairo.h>
-#include <cassert>
-#include <fcntl.h>
-#include <stdexcept>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <vector>
-#include <wayland-client.h>
 
-namespace fcitx {
-namespace wayland {
+namespace fcitx::wayland {
 
 Buffer::Buffer(WlShm *shm, uint32_t width, uint32_t height,
                wl_shm_format format)
-    : surface_(nullptr, &cairo_surface_destroy), width_(width),
-      height_(height) {
+    : width_(width), height_(height) {
     const char *path = getenv("XDG_RUNTIME_DIR");
     if (!path) {
         throw std::runtime_error("XDG_RUNTIME_DIR is not set");
@@ -84,5 +88,4 @@ void Buffer::attachToSurface(WlSurface *surface) {
     surface->commit();
 }
 
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland

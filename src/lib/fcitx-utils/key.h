@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #ifndef _FCITX_UTILS_KEY_H_
 #define _FCITX_UTILS_KEY_H_
@@ -25,14 +13,14 @@
 /// \file
 /// \brief Class to represent a key.
 
-#include "fcitxutils_export.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <fcitx-utils/flags.h>
-#include <fcitx-utils/keysym.h>
 #include <string>
 #include <vector>
+#include <fcitx-utils/flags.h>
+#include <fcitx-utils/keysym.h>
+#include "fcitxutils_export.h"
 
 namespace fcitx {
 class Key;
@@ -85,6 +73,22 @@ public:
         return check(Key(sym, states));
     }
 
+    /**
+     * Check if current key is a key release of given modifier only key.
+     *
+     * This is a very specialized check for modifier release case.
+     * And it's designed to handle modifier only key.
+     *
+     * For example, if Alt+Shift_L is pressed, then the following release key of
+     * this event can be either: Alt+Shift+Shift_L, or Alt+Shift+Meta_{L,R}.
+     * This is because: Alt -> Meta_{L,R}, if alt is released first, then it
+     * will produce Alt+Shift+Meta_{L,R}. If shift is released first, then it
+     * will produce Alt+Shift+Shift_L.
+     *
+     * Return false if key is not a modifier.
+     */
+    bool isReleaseOfModifier(const Key &key) const;
+
     /// Check if key is digit key.
     bool isDigit() const;
 
@@ -103,6 +107,9 @@ public:
     /// Check if this key will cause cursor to move, e.g. arrow key and page up/
     /// down.
     bool isCursorMove() const;
+
+    /// Check if this key is a key pad key.
+    bool isKeyPad() const;
 
     /// Check if states has modifier.
     bool hasModifier() const;
@@ -178,7 +185,7 @@ public:
     /// Check the current key against a key list.
     /// \see fcitx::Key::check
     template <typename Container>
-    bool checkKeyList(const Container &c) {
+    bool checkKeyList(const Container &c) const {
         return std::find_if(c.begin(), c.end(), [this](const Key &toCheck) {
                    return check(toCheck);
                }) != c.end();
@@ -188,7 +195,7 @@ public:
     /// \return Returns the matched key index or -1 if there is no match.
     /// \see fcitx::Key::check
     template <typename Container>
-    int keyListIndex(const Container &c) {
+    int keyListIndex(const Container &c) const {
         size_t idx = 0;
         for (auto &toCheck : c) {
             if (check(toCheck)) {

@@ -1,10 +1,9 @@
 #ifndef WL_OUTPUT
 #define WL_OUTPUT
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlOutput final {
 public:
     static constexpr const char *interface = "wl_output";
@@ -35,11 +34,10 @@ private:
     fcitx::Signal<void(int32_t)> scaleSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_output, decltype(&destructor)> data_;
+    UniqueCPtr<wl_output, &destructor> data_;
 };
 static inline wl_output *rawPointer(WlOutput *p) {
     return p ? static_cast<wl_output *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

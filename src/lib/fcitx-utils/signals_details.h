@@ -1,38 +1,26 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_SIGNAL_DETAILS_H_
 #define _FCITX_UTILS_SIGNAL_DETAILS_H_
 
+#include <functional>
+#include <iterator>
+#include <tuple>
 #include <fcitx-utils/handlertable.h>
 #include <fcitx-utils/intrusivelist.h>
 #include <fcitx-utils/trackableobject.h>
 #include <fcitx-utils/tuplehelpers.h>
-#include <functional>
-#include <iterator>
-#include <tuple>
 
 namespace fcitx {
 
 template <typename Ret, typename... Args>
 class Invoker {
 public:
-    Invoker(Args &... args) : args_(args...) {}
+    Invoker(Args &...args) : args_(args...) {}
 
     template <typename Func>
     Ret operator()(Func &func) {

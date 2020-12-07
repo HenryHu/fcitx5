@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include <exception>
 #include <functional>
@@ -24,9 +12,9 @@
 #if defined(__COVERITY__) && !defined(__INCLUDE_LEVEL__)
 #define __INCLUDE_LEVEL__ 2
 #endif
+#include <systemd/sd-event.h>
 #include "event.h"
 #include "log.h"
-#include <systemd/sd-event.h>
 
 namespace fcitx {
 
@@ -63,7 +51,7 @@ struct SDEventSourceBase : public Interface {
 public:
     ~SDEventSourceBase() {
         if (eventSource_) {
-            setEnabled(false);
+            sd_event_source_set_enabled(eventSource_, SD_EVENT_OFF);
             sd_event_source_set_userdata(eventSource_, nullptr);
             sd_event_source_unref(eventSource_);
         }
@@ -101,15 +89,13 @@ protected:
 };
 
 struct SDEventSource : public SDEventSourceBase<EventSource> {
-    SDEventSource(EventCallback _callback)
-        : SDEventSourceBase(), callback_(_callback) {}
+    SDEventSource(EventCallback _callback) : callback_(std::move(_callback)) {}
 
     EventCallback callback_;
 };
 
 struct SDEventSourceIO : public SDEventSourceBase<EventSourceIO> {
-    SDEventSourceIO(IOCallback _callback)
-        : SDEventSourceBase(), callback_(_callback) {}
+    SDEventSourceIO(IOCallback _callback) : callback_(std::move(_callback)) {}
 
     int fd() const override {
         int ret = sd_event_source_get_io_fd(eventSource_);
@@ -157,7 +143,7 @@ struct SDEventSourceIO : public SDEventSourceBase<EventSourceIO> {
 
 struct SDEventSourceTime : public SDEventSourceBase<EventSourceTime> {
     SDEventSourceTime(TimeCallback _callback)
-        : SDEventSourceBase(), callback_(_callback) {}
+        : callback_(std::move(_callback)) {}
 
     uint64_t time() const override {
         uint64_t time;
@@ -234,14 +220,14 @@ bool EventLoop::exec() {
     return r >= 0;
 }
 
-void EventLoop::quit() {
+void EventLoop::exit() {
     FCITX_D();
     sd_event_exit(d->event_, 0);
 }
 
 int IOEventCallback(sd_event_source *, int fd, uint32_t revents,
                     void *userdata) {
-    auto source = static_cast<SDEventSourceIO *>(userdata);
+    auto *source = static_cast<SDEventSourceIO *>(userdata);
     if (!source) {
         return 0;
     }
@@ -250,7 +236,7 @@ int IOEventCallback(sd_event_source *, int fd, uint32_t revents,
             source->callback_(source, fd, EpollFlagsToIOEventFlags(revents));
         return result ? 0 : -1;
     } catch (const std::exception &e) {
-        FCITX_LOG(Fatal) << e.what();
+        FCITX_FATAL() << e.what();
     }
     return -1;
 }
@@ -258,7 +244,7 @@ int IOEventCallback(sd_event_source *, int fd, uint32_t revents,
 std::unique_ptr<EventSourceIO> EventLoop::addIOEvent(int fd, IOEventFlags flags,
                                                      IOCallback callback) {
     FCITX_D();
-    auto source = std::make_unique<SDEventSourceIO>(callback);
+    auto source = std::make_unique<SDEventSourceIO>(std::move(callback));
     sd_event_source *sdEventSource;
     int err;
     if ((err = sd_event_add_io(d->event_, &sdEventSource, fd,
@@ -271,7 +257,7 @@ std::unique_ptr<EventSourceIO> EventLoop::addIOEvent(int fd, IOEventFlags flags,
 }
 
 int TimeEventCallback(sd_event_source *, uint64_t usec, void *userdata) {
-    auto source = static_cast<SDEventSourceTime *>(userdata);
+    auto *source = static_cast<SDEventSourceTime *>(userdata);
     if (!source) {
         return 0;
     }
@@ -280,7 +266,7 @@ int TimeEventCallback(sd_event_source *, uint64_t usec, void *userdata) {
         return result ? 0 : -1;
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return -1;
@@ -290,7 +276,7 @@ std::unique_ptr<EventSourceTime>
 EventLoop::addTimeEvent(clockid_t clock, uint64_t usec, uint64_t accuracy,
                         TimeCallback callback) {
     FCITX_D();
-    auto source = std::make_unique<SDEventSourceTime>(callback);
+    auto source = std::make_unique<SDEventSourceTime>(std::move(callback));
     sd_event_source *sdEventSource;
     int err;
     if ((err = sd_event_add_time(d->event_, &sdEventSource, clock, usec,
@@ -303,7 +289,7 @@ EventLoop::addTimeEvent(clockid_t clock, uint64_t usec, uint64_t accuracy,
 }
 
 int StaticEventCallback(sd_event_source *, void *userdata) {
-    auto source = static_cast<SDEventSource *>(userdata);
+    auto *source = static_cast<SDEventSource *>(userdata);
     if (!source) {
         return 0;
     }
@@ -312,7 +298,7 @@ int StaticEventCallback(sd_event_source *, void *userdata) {
         return result ? 0 : -1;
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return -1;
@@ -320,7 +306,7 @@ int StaticEventCallback(sd_event_source *, void *userdata) {
 
 std::unique_ptr<EventSource> EventLoop::addExitEvent(EventCallback callback) {
     FCITX_D();
-    auto source = std::make_unique<SDEventSource>(callback);
+    auto source = std::make_unique<SDEventSource>(std::move(callback));
     sd_event_source *sdEventSource;
     int err;
     if ((err = sd_event_add_exit(d->event_, &sdEventSource, StaticEventCallback,
@@ -333,7 +319,7 @@ std::unique_ptr<EventSource> EventLoop::addExitEvent(EventCallback callback) {
 
 std::unique_ptr<EventSource> EventLoop::addDeferEvent(EventCallback callback) {
     FCITX_D();
-    auto source = std::make_unique<SDEventSource>(callback);
+    auto source = std::make_unique<SDEventSource>(std::move(callback));
     sd_event_source *sdEventSource;
     int err;
     if ((err = sd_event_add_defer(d->event_, &sdEventSource,

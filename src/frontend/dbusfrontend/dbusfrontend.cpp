@@ -1,24 +1,11 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "dbusfrontend.h"
-#include "dbus_public.h"
 #include "fcitx-utils/dbus/message.h"
 #include "fcitx-utils/dbus/objectvtable.h"
 #include "fcitx-utils/dbus/servicewatcher.h"
@@ -29,19 +16,32 @@
 #include "fcitx/inputmethodmanager.h"
 #include "fcitx/instance.h"
 #include "fcitx/misc_p.h"
+#include "dbus_public.h"
 
 #define FCITX_INPUTMETHOD_DBUS_INTERFACE "org.fcitx.Fcitx.InputMethod1"
 #define FCITX_INPUTCONTEXT_DBUS_INTERFACE "org.fcitx.Fcitx.InputContext1"
 
 namespace fcitx {
 
+namespace {
+
+std::vector<dbus::DBusStruct<std::string, int>>
+buildFormattedTextVector(const Text &text) {
+    std::vector<dbus::DBusStruct<std::string, int>> vector;
+    for (int i = 0, e = text.size(); i < e; i++) {
+        vector.emplace_back(std::make_tuple(
+            text.stringAt(i), static_cast<int>(text.formatAt(i))));
+    }
+    return vector;
+}
+} // namespace
+
 class InputMethod1 : public dbus::ObjectVTable<InputMethod1> {
 public:
-    InputMethod1(DBusFrontendModule *module, dbus::Bus *bus)
+    InputMethod1(DBusFrontendModule *module, dbus::Bus *bus, const char *path)
         : module_(module), instance_(module->instance()), bus_(bus),
           watcher_(std::make_unique<dbus::ServiceWatcher>(*bus_)) {
-        bus_->addObjectVTable("/org/freedesktop/portal/inputmethod",
-                              FCITX_INPUTMETHOD_DBUS_INTERFACE, *this);
+        bus_->addObjectVTable(path, FCITX_INPUTMETHOD_DBUS_INTERFACE, *this);
     }
 
     std::tuple<dbus::ObjectPath, std::vector<uint8_t>> createInputContext(
@@ -57,7 +57,6 @@ private:
 
     DBusFrontendModule *module_;
     Instance *instance_;
-    int icIdx = 0;
     dbus::Bus *bus_;
     std::unique_ptr<dbus::ServiceWatcher> watcher_;
 };
@@ -78,6 +77,14 @@ public:
                            }
                        })),
           name_(sender) {
+        processKeyEventMethod.setClosureFunction(
+            [this](dbus::Message message, const dbus::ObjectMethod &method) {
+                if (capabilityFlags().test(CapabilityFlag::KeyEventOrderFix)) {
+                    InputContextEventBlocker blocker(this);
+                    return method(std::move(message));
+                }
+                return method(std::move(message));
+            });
         created();
     }
 
@@ -85,7 +92,7 @@ public:
 
     const char *frontend() const override { return "dbus"; }
 
-    const dbus::ObjectPath path() const { return path_; }
+    const dbus::ObjectPath &path() const { return path_; }
 
     void updateIM(const InputMethodEntry *entry) {
         currentIMTo(name_, entry->name(), entry->uniqueName(),
@@ -99,16 +106,51 @@ public:
     void updatePreeditImpl() override {
         auto preedit =
             im_->instance()->outputFilter(this, inputPanel().clientPreedit());
-        std::vector<dbus::DBusStruct<std::string, int>> strs;
-        for (int i = 0, e = preedit.size(); i < e; i++) {
-            strs.emplace_back(std::make_tuple(
-                preedit.stringAt(i), static_cast<int>(preedit.formatAt(i))));
-        }
+        std::vector<dbus::DBusStruct<std::string, int>> strs =
+            buildFormattedTextVector(preedit);
         updateFormattedPreeditTo(name_, strs, preedit.cursor());
     }
 
     void deleteSurroundingTextImpl(int offset, unsigned int size) override {
         deleteSurroundingTextDBusTo(name_, offset, size);
+    }
+
+    void updateClientSideUIImpl() override {
+        auto preedit =
+            im_->instance()->outputFilter(this, inputPanel().preedit());
+        auto auxUp = im_->instance()->outputFilter(this, inputPanel().auxUp());
+        auto auxDown =
+            im_->instance()->outputFilter(this, inputPanel().auxDown());
+        auto candidateList = inputPanel().candidateList();
+        int cursorIndex = 0;
+
+        std::vector<dbus::DBusStruct<std::string, int>> preeditStrings,
+            auxUpStrings, auxDownStrings;
+        std::vector<dbus::DBusStruct<std::string, std::string>> candidates;
+
+        preeditStrings = buildFormattedTextVector(preedit);
+        auxUpStrings = buildFormattedTextVector(auxUp);
+        auxDownStrings = buildFormattedTextVector(auxDown);
+        if (candidateList) {
+            for (int i = 0, e = candidateList->size(); i < e; i++) {
+                auto &candidate = candidateList->candidate(i);
+                if (candidate.isPlaceHolder()) {
+                    continue;
+                }
+                Text labelText = candidate.hasCustomLabel()
+                                     ? candidate.customLabel()
+                                     : candidateList->label(i);
+                labelText = im_->instance()->outputFilter(this, labelText);
+                Text candidateText =
+                    im_->instance()->outputFilter(this, candidate.text());
+                candidates.emplace_back(std::make_tuple(
+                    labelText.toString(), candidateText.toString()));
+            }
+            cursorIndex = candidateList->cursorIndex();
+        }
+        updateClientSideUITo(name_, preeditStrings, preedit.cursor(),
+                             auxUpStrings, auxDownStrings, candidates,
+                             cursorIndex);
     }
 
     void forwardKeyImpl(const ForwardKeyEvent &key) override {
@@ -139,6 +181,11 @@ public:
     void setCursorRectDBus(int x, int y, int w, int h) {
         CHECK_SENDER_OR_RETURN;
         setCursorRect(Rect{x, y, x + w, y + h});
+    }
+
+    void setCursorRectV2DBus(int x, int y, int w, int h, double scale) {
+        CHECK_SENDER_OR_RETURN;
+        setCursorRect(Rect{x, y, x + w, y + h}, scale);
     }
 
     void setCapability(uint64_t cap) {
@@ -183,6 +230,8 @@ private:
     FCITX_OBJECT_VTABLE_METHOD(focusOutDBus, "FocusOut", "", "");
     FCITX_OBJECT_VTABLE_METHOD(resetDBus, "Reset", "", "");
     FCITX_OBJECT_VTABLE_METHOD(setCursorRectDBus, "SetCursorRect", "iiii", "");
+    FCITX_OBJECT_VTABLE_METHOD(setCursorRectV2DBus, "SetCursorRectV2", "iiiid",
+                               "");
     FCITX_OBJECT_VTABLE_METHOD(setCapability, "SetCapability", "t", "");
     FCITX_OBJECT_VTABLE_METHOD(setSurroundingText, "SetSurroundingText", "suu",
                                "");
@@ -197,7 +246,8 @@ private:
                                "a(si)i");
     FCITX_OBJECT_VTABLE_SIGNAL(deleteSurroundingTextDBus,
                                "DeleteSurroundingText", "iu");
-    // TODO UpdateClientSideUI
+    FCITX_OBJECT_VTABLE_SIGNAL(updateClientSideUI, "UpdateClientSideUI",
+                               "a(si)ia(si)a(si)a(ss)i");
     FCITX_OBJECT_VTABLE_SIGNAL(forwardKeyDBus, "ForwardKey", "uub");
 
     dbus::ObjectPath path_;
@@ -210,8 +260,8 @@ std::tuple<dbus::ObjectPath, std::vector<uint8_t>>
 InputMethod1::createInputContext(
     const std::vector<dbus::DBusStruct<std::string, std::string>> &args) {
     std::unordered_map<std::string, std::string> strMap;
-    for (auto &p : args) {
-        std::string key = std::get<0>(p.data()), value = std::get<1>(p.data());
+    for (const auto &p : args) {
+        const auto &[key, value] = p.data();
         strMap[key] = value;
     }
     std::string program;
@@ -223,8 +273,9 @@ InputMethod1::createInputContext(
     std::string *display = findValue(strMap, "display");
 
     auto sender = currentMessage()->sender();
-    auto ic = new DBusInputContext1(icIdx++, instance_->inputContextManager(),
-                                    this, sender, program);
+    auto *ic = new DBusInputContext1(module_->nextIcIdx(),
+                                     instance_->inputContextManager(), this,
+                                     sender, program);
     ic->setFocusGroup(instance_->defaultFocusGroup(display ? *display : ""));
 
     bus_->addObjectVTable(ic->path().path(), FCITX_INPUTCONTEXT_DBUS_INTERFACE,
@@ -238,25 +289,28 @@ InputMethod1::createInputContext(
 DBusFrontendModule::DBusFrontendModule(Instance *instance)
     : instance_(instance),
       portalBus_(std::make_unique<dbus::Bus>(dbus::BusType::Session)),
-      inputMethod1_(std::make_unique<InputMethod1>(this, bus())),
-      portalInputMethod1_(
-          std::make_unique<InputMethod1>(this, portalBus_.get())) {
+      inputMethod1_(std::make_unique<InputMethod1>(
+          this, bus(), "/org/freedesktop/portal/inputmethod")),
+      inputMethod1Compatible_(std::make_unique<InputMethod1>(
+          this, portalBus_.get(), "/inputmethod")),
+      portalInputMethod1_(std::make_unique<InputMethod1>(
+          this, portalBus_.get(), "/org/freedesktop/portal/inputmethod")) {
 
     portalBus_->attachEventLoop(&instance->eventLoop());
     if (!portalBus_->requestName(
             FCITX_PORTAL_DBUS_SERVICE,
             Flags<dbus::RequestNameFlag>{dbus::RequestNameFlag::ReplaceExisting,
                                          dbus::RequestNameFlag::Queue})) {
-        FCITX_LOG(Warn) << "Can not get portal dbus name right now.";
+        FCITX_WARN() << "Can not get portal dbus name right now.";
     }
 
     event_ = instance_->watchEvent(
         EventType::InputContextInputMethodActivated, EventWatcherPhase::Default,
         [this](Event &event) {
             auto &activated = static_cast<InputMethodActivatedEvent &>(event);
-            auto ic = activated.inputContext();
+            auto *ic = activated.inputContext();
             if (strcmp(ic->frontend(), "dbus") == 0) {
-                if (auto entry = instance_->inputMethodManager().entry(
+                if (const auto *entry = instance_->inputMethodManager().entry(
                         activated.name())) {
                     static_cast<DBusInputContext1 *>(ic)->updateIM(entry);
                 }

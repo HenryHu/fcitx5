@@ -1,34 +1,33 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MENU_H_
 #define _FCITX_MENU_H_
 
-#include "fcitxcore_export.h"
+#include <memory>
 #include <fcitx-utils/element.h>
 #include <fcitx-utils/macros.h>
 #include <fcitx/action.h>
-#include <memory>
+#include "fcitxcore_export.h"
+
+/// \addtogroup FcitxCore
+/// \{
+/// \file
+/// \brief Class for menu in UI.
 
 namespace fcitx {
 
 class MenuPrivate;
 
+/**
+ * Menu that contains a list of actions.
+ *
+ * The user interface may only support one-level of menu, so you
+ * may want to avoid multiple level of menu if possible.
+ */
 class FCITXCORE_EXPORT Menu : public Element {
 public:
     friend class Action;

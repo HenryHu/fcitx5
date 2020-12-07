@@ -1,29 +1,18 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_CONNECTABLEOBJECT_H_
 #define _FCITX_UTILS_CONNECTABLEOBJECT_H_
 
-#include "fcitxutils_export.h"
-#include <fcitx-utils/metastring.h>
-#include <fcitx-utils/signals.h>
 #include <memory>
 #include <string>
+#include <utility>
+#include <fcitx-utils/metastring.h>
+#include <fcitx-utils/signals.h>
+#include "fcitxutils_export.h"
 
 /// \addtogroup FcitxUtils
 /// \{
@@ -99,15 +88,19 @@ protected:
     /// still the original type.
     void destroy();
 
-protected:
     template <typename SignalType, typename... Args>
-    auto emit(Args &&... args) {
+    auto emit(Args &&...args) {
+        return std::as_const(*this).emit<SignalType>(
+            std::forward<Args>(args)...);
+    }
+
+    template <typename SignalType, typename... Args>
+    auto emit(Args &&...args) const {
         auto signal = findSignal(SignalType::signature::data());
         return (*static_cast<Signal<typename SignalType::signalType> *>(
             signal))(std::forward<Args>(args)...);
     }
 
-protected:
     template <typename SignalType>
     void registerSignal() {
         _registerSignal(
@@ -123,9 +116,10 @@ protected:
 private:
     void _registerSignal(std::string name, std::unique_ptr<SignalBase> signal);
     void _unregisterSignal(const std::string &name);
+    // FIXME: remove non-const variant when we can break ABI.
     SignalBase *findSignal(const std::string &name);
+    SignalBase *findSignal(const std::string &name) const;
 
-private:
     std::unique_ptr<ConnectableObjectPrivate> d_ptr;
     FCITX_DECLARE_PRIVATE(ConnectableObject);
 };

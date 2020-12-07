@@ -1,27 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
-#include "fcitx-utils/log.h"
 #include <algorithm>
-#include <fcitx-utils/intrusivelist.h>
 #include <iterator>
 #include <vector>
+#include <fcitx-utils/intrusivelist.h>
+#include "fcitx-utils/log.h"
 
 using namespace fcitx;
 
@@ -102,7 +90,7 @@ void test_move() {
         IntrusiveList<Foo> list;
         IntrusiveList<Foo> list2;
         list2 = std::move(list);
-        FCITX_ASSERT(list2.size() == 0);
+        FCITX_ASSERT(list2.empty());
     }
     {
         // something to empty
@@ -141,7 +129,7 @@ void test_move() {
         FCITX_ASSERT(!b.isInList());
         FCITX_ASSERT(!c.isInList());
         FCITX_ASSERT(!d.isInList());
-        FCITX_ASSERT(list2.size() == 0);
+        FCITX_ASSERT(list2.empty());
     }
 }
 

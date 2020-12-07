@@ -1,10 +1,9 @@
 #ifndef WL_DATA_OFFER
 #define WL_DATA_OFFER
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlDataOffer final {
 public:
     static constexpr const char *interface = "wl_data_offer";
@@ -35,11 +34,10 @@ private:
     fcitx::Signal<void(uint32_t)> actionSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_data_offer, decltype(&destructor)> data_;
+    UniqueCPtr<wl_data_offer, &destructor> data_;
 };
 static inline wl_data_offer *rawPointer(WlDataOffer *p) {
     return p ? static_cast<wl_data_offer *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

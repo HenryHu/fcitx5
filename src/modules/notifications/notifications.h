@@ -1,34 +1,24 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_MODULES_NOTIFICATIONS_NOTIFICATIONS_H_
 #define _FCITX_MODULES_NOTIFICATIONS_NOTIFICATIONS_H_
 
+#include <functional>
+#include <unordered_set>
+#include <utility>
 #include "fcitx-config/configuration.h"
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/dbus/bus.h"
 #include "fcitx-utils/dbus/servicewatcher.h"
+#include "fcitx-utils/fs.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx/addoninstance.h"
 #include "fcitx/instance.h"
 #include "notifications_public.h"
-#include <functional>
-#include <unordered_set>
 
 namespace fcitx {
 
@@ -41,8 +31,8 @@ struct NotificationItem {
     NotificationItem(uint64_t internalId,
                      NotificationActionCallback actionCallback,
                      NotificationClosedCallback closedCallback)
-        : internalId_(internalId), actionCallback_(actionCallback),
-          closedCallback_(closedCallback) {}
+        : internalId_(internalId), actionCallback_(std::move(actionCallback)),
+          closedCallback_(std::move(closedCallback)) {}
     uint32_t globalId_ = 0;
     uint64_t internalId_;
     NotificationActionCallback actionCallback_;
@@ -124,6 +114,8 @@ private:
 
     std::unordered_map<uint64_t, NotificationItem> items_;
     std::unordered_map<uint32_t, uint64_t> globalToInternalId_;
+
+    const bool inFlatpak_ = fs::isreg("/.flatpak-info");
 };
 } // namespace fcitx
 

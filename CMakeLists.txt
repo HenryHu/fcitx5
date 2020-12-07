@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.6.0)
-set(FCITX_VERSION 4.99.0)
-project(fcitx VERSION ${FCITX_VERSION})
+project(fcitx VERSION 5.0.3)
+set(FCITX_VERSION ${PROJECT_VERSION})
 
 find_package(ECM REQUIRED 1.0.0)
-set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${ECM_MODULE_PATH} ${CMAKE_MODULE_PATH})
 
 #######################################################################
 # CMake macros
@@ -21,11 +21,33 @@ include(src/lib/fcitx-utils/Fcitx5Macros.cmake)
 #######################################################################
 option(ENABLE_TEST "Build Test" On)
 option(ENABLE_COVERAGE "Build the project with gcov support (Need ENABLE_TEST=On)" Off)
+set(GCOV_TOOL "gcov" CACHE STRING "Path to gcov tool used by coverage.")
 set(DEFAULT_XKB_RULES "evdev" CACHE STRING "Xkb rules name")
 option(ENABLE_ENCHANT "Enable enchant for word predication" On)
 option(ENABLE_PRESAGE "Enable presage for word predication" Off)
+option(ENABLE_X11 "Enable X11 support" On)
+option(ENABLE_WAYLAND "Enable wayland support" On)
 option(ENABLE_DOC "Build doxygen" Off)
 option(USE_SYSTEMD "Use systemd for event loop and dbus, will fallback to libevent/libdbus if not found." On)
+option(ENABLE_XDGAUTOSTART "Enable xdg autostart desktop file installation" On)
+option(USE_FLATPAK_ICON "Use flatpak icon name for desktop files" Off)
+set(CLDR_DIR "" CACHE STRING "Unicode CLDR (Common Locale Data Repository) directory")
+
+if (CLDR_DIR STREQUAL "")
+    if (IS_DIRECTORY "${CMAKE_INSTALL_FULL_DATADIR}/unicode/cldr")
+        set(CLDR_DIR "${CMAKE_INSTALL_FULL_DATADIR}/unicode/cldr")
+    else(IS_DIRECTORY "/usr/share/unicode/cldr")
+        set(CLDR_DIR "/usr/share/unicode/cldr")
+    endif()
+endif()
+
+if (CLDR_DIR STREQUAL "" OR NOT IS_DIRECTORY "${CLDR_DIR}/common/annotations/")
+    message(WARNING "Could not find Unicode CLDR Annotation directory")
+    set(ENABLE_EMOJI FALSE)
+else()
+    set(ENABLE_EMOJI TRUE)
+endif()
+
 
 #######################################################################
 # Find packages
@@ -40,6 +62,12 @@ endif()
 if (USE_SYSTEMD)
 find_package(Systemd)
 endif ()
+
+if (USE_FLATPAK_ICON)
+    set(FCITX_ICON_NAME "org.fcitx.Fcitx5")
+else()
+    set(FCITX_ICON_NAME "fcitx")
+endif()
 
 if (NOT TARGET Systemd::Systemd)
 pkg_check_modules(DBus REQUIRED IMPORTED_TARGET "dbus-1")
@@ -61,25 +89,32 @@ else()
   set(FMT_TARGET fmt::fmt)
 endif ()
 
-find_package(XCB COMPONENTS XCB AUX XKB XFIXES ICCCM XINERAMA RANDR EWMH KEYSYMS)
-find_package(XKBCommon COMPONENTS XKBCommon X11)
-find_package(XCBImdkit)
+set(REQUIRED_XKBCOMMON_COMPONENTS XKBCommon)
+if (ENABLE_X11)
+    set(REQUIRED_XKBCOMMON_COMPONENTS ${REQUIRED_XKBCOMMON_COMPONENTS} X11)
+    find_package(XCB REQUIRED COMPONENTS XCB AUX XKB XFIXES ICCCM XINERAMA RANDR EWMH KEYSYMS)
+    find_package(XCBImdkit REQUIRED)
+    pkg_check_modules(CairoXCB IMPORTED_TARGET cairo-xcb)
+    pkg_check_modules(XkbFile REQUIRED IMPORTED_TARGET "xkbfile")
+endif()
+
+find_package(XKBCommon REQUIRED COMPONENTS ${REQUIRED_XKBCOMMON_COMPONENTS})
 find_package(IsoCodes REQUIRED)
 find_package(Expat REQUIRED)
 find_package(XKeyboardConfig)
 pkg_check_modules(JsonC REQUIRED IMPORTED_TARGET "json-c")
-pkg_check_modules(XkbFile REQUIRED IMPORTED_TARGET "xkbfile")
 pkg_check_modules(Cairo IMPORTED_TARGET cairo)
-pkg_check_modules(CairoXCB IMPORTED_TARGET cairo-xcb)
-pkg_check_modules(CairoEGL IMPORTED_TARGET cairo-egl)
 pkg_check_modules(Pango IMPORTED_TARGET pango pangocairo)
 pkg_check_modules(GdkPixbuf IMPORTED_TARGET gdk-pixbuf-2.0)
 pkg_check_modules(GioUnix IMPORTED_TARGET gio-unix-2.0)
-pkg_check_modules(CldrEmojiAnnotation REQUIRED IMPORTED_TARGET cldr-emoji-annotation)
-find_package(Wayland COMPONENTS Client Egl)
-find_package(WaylandScanner)
-find_package(WaylandProtocols)
-find_package(EGL)
+
+if (ENABLE_WAYLAND)
+    find_package(Wayland REQUIRED COMPONENTS Client Egl)
+    find_package(WaylandScanner REQUIRED)
+    find_package(WaylandProtocols REQUIRED)
+    find_package(EGL)
+    pkg_check_modules(CairoEGL IMPORTED_TARGET cairo-egl)
+endif()
 
 if(ENABLE_ENCHANT)
   pkg_check_modules(Enchant IMPORTED_TARGET "enchant-2")
@@ -98,10 +133,16 @@ else()
   set(CAIRO_EGL_FOUND FALSE)
 endif()
 
+if (TARGET Wayland::Client AND ENABLE_WAYLAND)
+    set(WAYLAND_FOUND TRUE)
+else()
+    set(WAYLAND_FOUND FALSE)
+endif()
+
 set(DEFAULT_XKB_RULES_FILES "${XKEYBOARDCONFIG_XKBBASE}/rules/${DEFAULT_XKB_RULES}.xml")
 if (NOT EXISTS "${DEFAULT_XKB_RULES_FILES}")
-message(FATAL_ERROR "Could not find default xkb rules file: ${DEFAULT_XKB_RULES_FILES}")
-endif ()
+  message(FATAL_ERROR "Could not find default xkb rules file: ${DEFAULT_XKB_RULES_FILES}")
+endif()
 
 # directory needed by bsd
 if(NOT CMAKE_INSTALL_LIBDATADIR)
@@ -134,6 +175,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_subdirectory(src)
 add_subdirectory(data)
 add_subdirectory(po)
+add_subdirectory(testing)
 
 #######################################################################
 # Test features
@@ -145,7 +187,7 @@ if (ENABLE_TEST)
     if (ENABLE_COVERAGE)
         add_custom_target(coverage
                         COMMAND "${CMAKE_CTEST_COMMAND}"
-                        COMMAND lcov --no-external --capture --directory ./ -b "${CMAKE_CURRENT_SOURCE_DIR}" --output-file coverage.info
+                        COMMAND lcov --gcov-tool "${GCOV_TOOL}" --no-external --capture --directory ./ -b "${CMAKE_CURRENT_SOURCE_DIR}" --output-file coverage.info
                         COMMAND genhtml coverage.info --output-directory "coverage_pages"
                         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     endif()

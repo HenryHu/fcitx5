@@ -1,4 +1,4 @@
-if (NOT IS_DIRECTORY ${CldrEmojiAnnotation_PREFIX}/share/unicode/cldr/common/annotations)
+if (NOT ENABLE_EMOJI)
     return()
 endif()
 

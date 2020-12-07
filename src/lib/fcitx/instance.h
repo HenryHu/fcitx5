@@ -1,32 +1,20 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_INSTANCE_H_
 #define _FCITX_INSTANCE_H_
 
-#include "fcitxcore_export.h"
+#include <memory>
 #include <fcitx-utils/connectableobject.h>
 #include <fcitx-utils/handlertable.h>
 #include <fcitx-utils/macros.h>
 #include <fcitx/event.h>
 #include <fcitx/globalconfig.h>
 #include <fcitx/text.h>
-#include <memory>
+#include "fcitxcore_export.h"
 
 #define FCITX_INVALID_COMPOSE_RESULT 0xffffffff
 
@@ -66,7 +54,8 @@ public:
     void setSignalPipe(int fd);
     int exec();
     bool willTryReplace() const;
-    bool quitWhenMainDisplayDisconnected() const;
+    bool exitWhenMainDisplayDisconnected() const;
+    bool exiting() const;
 
     EventLoop &eventLoop();
     AddonManager &addonManager();
@@ -85,8 +74,8 @@ public:
     InputMethodEngine *inputMethodEngine(InputContext *ic);
     InputMethodEngine *inputMethodEngine(const std::string &name);
 
-    uint32_t processCompose(InputContext *ic, KeySym keyval);
-    void resetCompose(InputContext *ic);
+    uint32_t processCompose(InputContext *ic, KeySym keysym);
+    void resetCompose(InputContext *inputContext);
 
     std::string commitFilter(InputContext *inputContext,
                              const std::string &orig);
@@ -121,10 +110,14 @@ public:
     void toggle();
     void resetInputMethodList();
     int state();
+    /// Reload global config.
     void reloadConfig();
+    /// Reload certain addon config.
     void reloadAddonConfig(const std::string &addonName);
     std::string currentInputMethod();
     void setCurrentInputMethod(const std::string &imName);
+    void setCurrentInputMethod(InputContext *ic, const std::string &imName,
+                               bool local);
     bool enumerateGroup(bool forward);
     void enumerate(bool forward);
 
@@ -136,6 +129,8 @@ public:
                             uint32_t latched_mods, uint32_t locked_mods);
     void showInputMethodInformation(InputContext *ic);
 
+    static const char *version();
+
 private:
     void initialize();
     void handleSignal();
@@ -143,6 +138,7 @@ private:
 
     bool canTrigger() const;
     bool canAltTrigger(InputContext *ic) const;
+    bool canEnumerate(InputContext *ic) const;
     bool canChangeGroup() const;
     bool trigger(InputContext *ic, bool totallyReleased);
     bool altTrigger(InputContext *ic);

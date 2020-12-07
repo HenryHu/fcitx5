@@ -1,32 +1,19 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "display.h"
-#include "wl_output.h"
-#include "wl_registry.h"
-#include <cassert>
-#include <cstring>
 #include <errno.h>
 #include <poll.h>
+#include <cassert>
+#include <cstring>
+#include "wl_output.h"
+#include "wl_registry.h"
 
-namespace fcitx {
-namespace wayland {
+namespace fcitx::wayland {
 
 void Display::createGlobalHelper(
     GlobalsFactoryBase *factory,
@@ -38,10 +25,9 @@ void Display::createGlobalHelper(
                          std::get<std::shared_ptr<void>>(globalsPair.second));
 }
 
-Display::Display(wl_display *display)
-    : display_(display, &wl_display_disconnect) {
+Display::Display(wl_display *display) : display_(display) {
     wl_display_set_user_data(display, this);
-    auto reg = registry();
+    auto *reg = registry();
     reg->global().connect(
         [this](uint32_t name, const char *interface, uint32_t version) {
             auto result = globals_.emplace(std::make_pair(
@@ -61,22 +47,22 @@ Display::Display(wl_display *display)
     });
 
     requestGlobals<wayland::WlOutput>();
-    globalCreatedSignal_.connect(
-        [this](const std::string &interface, std::shared_ptr<void> data) {
-            if (interface != wayland::WlOutput::interface) {
-                return;
-            }
-            auto output = static_cast<wayland::WlOutput *>(data.get());
-            addOutput(output);
-        });
-    globalRemovedSignal_.connect(
-        [this](const std::string &interface, std::shared_ptr<void> data) {
-            if (interface != wayland::WlOutput::interface) {
-                return;
-            }
-            auto output = static_cast<wayland::WlOutput *>(data.get());
-            removeOutput(output);
-        });
+    globalCreatedSignal_.connect([this](const std::string &interface,
+                                        const std::shared_ptr<void> &data) {
+        if (interface != wayland::WlOutput::interface) {
+            return;
+        }
+        auto *output = static_cast<wayland::WlOutput *>(data.get());
+        addOutput(output);
+    });
+    globalRemovedSignal_.connect([this](const std::string &interface,
+                                        const std::shared_ptr<void> &data) {
+        if (interface != wayland::WlOutput::interface) {
+            return;
+        }
+        auto *output = static_cast<wayland::WlOutput *>(data.get());
+        removeOutput(output);
+    });
 
     wl_display_roundtrip(*this);
 }
@@ -149,5 +135,4 @@ void Display::addOutput(wayland::WlOutput *output) {
 void Display::removeOutput(wayland::WlOutput *output) {
     outputInfo_.erase(output);
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland

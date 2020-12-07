@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_LOG_H_
 #define _FCITX_UTILS_LOG_H_
 
@@ -24,14 +12,9 @@
 /// \file
 /// \brief Log utilities.
 
-#include "fcitxutils_export.h"
 #include <cstdlib>
-#include <fcitx-utils/fs.h>
-#include <fcitx-utils/key.h>
-#include <fcitx-utils/metastring.h>
-#include <fcitx-utils/misc.h>
-#include <fcitx-utils/tuplehelpers.h>
 #include <iostream>
+#include <list>
 #include <map>
 #include <memory>
 #include <set>
@@ -40,12 +23,18 @@
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <fcitx-utils/fs.h>
+#include <fcitx-utils/key.h>
+#include <fcitx-utils/metastring.h>
+#include <fcitx-utils/misc.h>
+#include <fcitx-utils/tuplehelpers.h>
+#include "fcitxutils_export.h"
 
 namespace fcitx {
 
 /// \brief LogLevel from high to low.
 enum LogLevel : int {
-    None = 0,
+    NoLog = 0,
     /// Fatal will always abort regardless of log or not.
     Fatal = 1,
     Error = 2,
@@ -76,7 +65,7 @@ public:
 
     // Helper function
     bool fatalWrapper(LogLevel l) const;
-    bool fatalWrapper2(LogLevel l) const;
+    static bool fatalWrapper2(LogLevel l);
 
 private:
     FCITX_DECLARE_PRIVATE(LogCategory);
@@ -137,6 +126,14 @@ public:
         return *this;
     }
 
+    template <typename T>
+    inline LogMessageBuilder &operator<<(const std::list<T> &lst) {
+        *this << "list[";
+        printRange(lst.begin(), lst.end());
+        *this << "]";
+        return *this;
+    }
+
     template <typename K, typename V>
     inline LogMessageBuilder &operator<<(const std::pair<K, V> &pair) {
         *this << "(" << pair.first << ", " << pair.second << ")";
@@ -178,6 +175,40 @@ public:
 
     template <typename V>
     inline LogMessageBuilder &operator<<(const std::set<V> &vec) {
+        *this << "{";
+        printRange(vec.begin(), vec.end());
+        *this << "}";
+        return *this;
+    }
+
+    template <typename K, typename V>
+    inline LogMessageBuilder &operator<<(const std::multimap<K, V> &vec) {
+        *this << "{";
+        printRange(vec.begin(), vec.end());
+        *this << "}";
+        return *this;
+    }
+
+    template <typename V>
+    inline LogMessageBuilder &operator<<(const std::multiset<V> &vec) {
+        *this << "{";
+        printRange(vec.begin(), vec.end());
+        *this << "}";
+        return *this;
+    }
+
+    template <typename K, typename V>
+    inline LogMessageBuilder &
+    operator<<(const std::unordered_multimap<K, V> &vec) {
+        *this << "{";
+        printRange(vec.begin(), vec.end());
+        *this << "}";
+        return *this;
+    }
+
+    template <typename V>
+    inline LogMessageBuilder &
+    operator<<(const std::unordered_multiset<V> &vec) {
         *this << "{";
         printRange(vec.begin(), vec.end());
         *this << "}";
@@ -246,7 +277,8 @@ private:
 #define FCITX_LOG_IF(LEVEL, CONDITION)                                         \
     FCITX_LOGC_IF(::fcitx::Log::defaultCategory, LEVEL, CONDITION)
 
-#define FCITX_ASSERT(EXPR) FCITX_LOG_IF(Fatal, !(EXPR)) << #EXPR << " failed"
+#define FCITX_ASSERT(...)                                                      \
+    FCITX_LOG_IF(Fatal, !(__VA_ARGS__)) << #__VA_ARGS__ << " failed."
 
 #define FCITX_DEFINE_LOG_CATEGORY(name, ...)                                   \
     const ::fcitx::LogCategory &name() {                                       \

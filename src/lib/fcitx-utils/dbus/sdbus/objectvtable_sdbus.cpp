@@ -1,30 +1,17 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
+#include <unordered_set>
 #include "../../log.h"
 #include "../objectvtable.h"
 #include "bus_p.h"
 #include "objectvtable_p_sdbus.h"
-#include <unordered_set>
 
-namespace fcitx {
-namespace dbus {
+namespace fcitx::dbus {
 
 class ObjectVTablePrivate {
 public:
@@ -42,11 +29,11 @@ public:
 };
 
 int SDMethodCallback(sd_bus_message *m, void *userdata, sd_bus_error *) {
-    auto vtable = static_cast<ObjectVTableBase *>(userdata);
+    auto *vtable = static_cast<ObjectVTableBase *>(userdata);
     if (!vtable) {
         return 0;
     }
-    auto method = vtable->findMethod(sd_bus_message_get_member(m));
+    auto *method = vtable->findMethod(sd_bus_message_get_member(m));
     if (!method) {
         return 0;
     }
@@ -55,7 +42,7 @@ int SDMethodCallback(sd_bus_message *m, void *userdata, sd_bus_error *) {
         return 1;
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return 0;
@@ -64,11 +51,11 @@ int SDMethodCallback(sd_bus_message *m, void *userdata, sd_bus_error *) {
 int SDPropertyGetCallback(sd_bus *, const char *, const char *,
                           const char *property, sd_bus_message *reply,
                           void *userdata, sd_bus_error *) {
-    auto vtable = static_cast<ObjectVTableBase *>(userdata);
+    auto *vtable = static_cast<ObjectVTableBase *>(userdata);
     if (!vtable) {
         return 0;
     }
-    auto prop = vtable->findProperty(property);
+    auto *prop = vtable->findProperty(property);
     if (!prop) {
         return 0;
     }
@@ -78,7 +65,7 @@ int SDPropertyGetCallback(sd_bus *, const char *, const char *,
         return 1;
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return 0;
@@ -87,11 +74,11 @@ int SDPropertyGetCallback(sd_bus *, const char *, const char *,
 int SDPropertySetCallback(sd_bus *, const char *, const char *,
                           const char *property, sd_bus_message *value,
                           void *userdata, sd_bus_error *) {
-    auto vtable = static_cast<ObjectVTableBase *>(userdata);
+    auto *vtable = static_cast<ObjectVTableBase *>(userdata);
     if (!vtable) {
         return 0;
     }
-    auto prop = vtable->findProperty(property);
+    auto *prop = vtable->findProperty(property);
     if (!prop || !prop->writable()) {
         return 0;
     }
@@ -101,7 +88,7 @@ int SDPropertySetCallback(sd_bus *, const char *, const char *,
         return 1;
     } catch (const std::exception &e) {
         // some abnormal things threw
-        FCITX_LOG(Error) << e.what();
+        FCITX_ERROR() << e.what();
         abort();
     }
     return 0;
@@ -120,13 +107,13 @@ uint32_t PropertyOptionsToSDBusFlags(PropertyOptions options) {
 const sd_bus_vtable *
 ObjectVTableBasePrivate::toSDBusVTable(ObjectVTableBase *q) {
     std::lock_guard<std::mutex> lock(q->privateDataMutexForType());
-    auto p = q->privateDataForType();
+    auto *p = q->privateDataForType();
     if (!p->hasVTable_) {
         std::vector<sd_bus_vtable> &result = p->vtable_;
         result.push_back(vtable_start());
 
         for (const auto &m : methods_) {
-            auto method = m.second;
+            auto *method = m.second;
             result.push_back(vtable_method(
                 p->vtableString(method->name()).c_str(),
                 p->vtableString(method->signature()).c_str(),
@@ -134,14 +121,14 @@ ObjectVTableBasePrivate::toSDBusVTable(ObjectVTableBase *q) {
         }
 
         for (const auto &s : sigs_) {
-            auto sig = s.second;
+            auto *sig = s.second;
             result.push_back(
                 vtable_signal(p->vtableString(sig->name()).c_str(),
                               p->vtableString(sig->signature()).c_str()));
         }
 
         for (const auto &pr : properties_) {
-            auto prop = pr.second;
+            auto *prop = pr.second;
             if (prop->writable()) {
                 result.push_back(vtable_writable_property(
                     p->vtableString(prop->name()).c_str(),
@@ -209,6 +196,11 @@ Bus *ObjectVTableBase::bus() {
     return d->slot_->bus_;
 }
 
+bool ObjectVTableBase::isRegistered() const {
+    FCITX_D();
+    return !!d->slot_;
+}
+
 const std::string &ObjectVTableBase::path() const {
     FCITX_D();
     return d->slot_->path_;
@@ -224,9 +216,9 @@ Message *ObjectVTableBase::currentMessage() const {
     return d->msg_;
 }
 
-void ObjectVTableBase::setCurrentMessage(Message *msg) {
+void ObjectVTableBase::setCurrentMessage(Message *message) {
     FCITX_D();
-    d->msg_ = msg;
+    d->msg_ = message;
 }
 
 std::shared_ptr<ObjectVTablePrivate> ObjectVTableBase::newSharedPrivateData() {
@@ -237,5 +229,4 @@ void ObjectVTableBase::setSlot(Slot *slot) {
     FCITX_D();
     d->slot_.reset(static_cast<SDVTableSlot *>(slot));
 }
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus

@@ -1,42 +1,47 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "icontheme.h"
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fstream>
+#include <stdexcept>
+#include <unordered_set>
 #include "fcitx-config/iniparser.h"
 #include "fcitx-config/marshallfunction.h"
 #include "fcitx-utils/fs.h"
 #include "fcitx-utils/log.h"
-#include <fcntl.h>
-#include <fstream>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unordered_set>
+#include "config.h"
 
 namespace fcitx {
 
 std::string pathToRoot(const RawConfig &config) {
     std::string path;
-    auto pConfig = &config;
+    const auto *pConfig = &config;
+    size_t length = 0;
     while (pConfig) {
-        if (pConfig->parent() && !path.empty()) {
-            path = "/" + path;
+        if (pConfig->parent() && length) {
+            length += 1; // For "/";
         }
-        path = pConfig->name() + path;
+        length += pConfig->name().size();
+        pConfig = pConfig->parent();
+    }
+
+    pConfig = &config;
+    path.resize(length);
+    size_t currentLength = 0;
+    while (pConfig) {
+        if (pConfig->parent() && currentLength) {
+            currentLength += 1; // For "/";
+            path[length - currentLength] = '/';
+        }
+        const auto &seg = pConfig->name();
+        currentLength += seg.size();
+        path.replace(length - currentLength, seg.size(), seg);
         pConfig = pConfig->parent();
     }
     return path;
@@ -162,8 +167,9 @@ bool timespecLess(const timespec &lhs, const timespec &rhs) {
 
 static uint32_t iconNameHash(const char *p) {
     uint32_t h = static_cast<signed char>(*p);
-    for (p += 1; *p != '\0'; p++)
+    for (p += 1; *p != '\0'; p++) {
         h = (h << 5) - h + *p;
+    }
     return h;
 }
 
@@ -216,7 +222,7 @@ public:
                 return;
             }
             struct stat subDirSt;
-            auto dir = checkString(offset);
+            auto *dir = checkString(offset);
             if (!dir || stat(stringutils::joinPath(dirName, dir).c_str(),
                              &subDirSt) != 0) {
                 isValid_ = false;
@@ -230,7 +236,7 @@ public:
     }
 
     IconThemeCache() = default;
-    IconThemeCache(IconThemeCache &&other)
+    IconThemeCache(IconThemeCache &&other) noexcept
         : isValid_(other.isValid_), memory_(other.memory_), size_(other.size_) {
         other.isValid_ = false;
         other.memory_ = nullptr;
@@ -259,7 +265,7 @@ public:
         }
         return memory_[offset + 1] | memory_[offset] << 8;
     }
-    uint32_t readDoubleWord(uint offset) const {
+    uint32_t readDoubleWord(unsigned int offset) const {
         if (offset > size_ - 4 || (offset % 4)) {
             isValid_ = false;
             return 0;
@@ -275,8 +281,9 @@ public:
                 return nullptr;
             }
             auto c = memory_[offset + i];
-            if (c == '\0')
+            if (c == '\0') {
                 break;
+            }
         }
         return reinterpret_cast<char *>(memory_ + offset);
     }
@@ -305,7 +312,7 @@ IconThemeCache::lookup(const std::string &name) const {
     uint32_t bucketOffset = readDoubleWord(hashOffset + 4 + bucketIndex * 4);
     while (bucketOffset > 0 && bucketOffset <= size_ - 12) {
         uint32_t nameOff = readDoubleWord(bucketOffset + 4);
-        auto namePtr = checkString(nameOff);
+        auto *namePtr = checkString(nameOff);
         if (nameOff < size_ && namePtr && name == namePtr) {
             uint32_t dirListOffset = readDoubleWord(8);
             uint32_t dirListLen = readDoubleWord(dirListOffset);
@@ -326,7 +333,7 @@ IconThemeCache::lookup(const std::string &name) const {
                     isValid_ = false;
                     return ret;
                 }
-                if (auto str = checkString(o)) {
+                if (auto *str = checkString(o)) {
                     ret.emplace(str);
                 } else {
                     return {};
@@ -462,7 +469,7 @@ public:
             return filename;
         }
 
-        for (auto &inherit : inherits_) {
+        for (const auto &inherit : inherits_) {
             filename =
                 inherit.d_func()->lookupIcon(icon, size, scale, extensions);
             if (!filename.empty()) {
@@ -483,7 +490,7 @@ public:
                 return {};
             }
 
-            for (auto &ext : extensions) {
+            for (const auto &ext : extensions) {
                 auto defaultPath = stringutils::joinPath(baseDir, iconname);
                 defaultPath += ext;
                 if (fs::isreg(defaultPath)) {
@@ -493,14 +500,14 @@ public:
             return {};
         };
 
-        for (auto &baseDir : baseDirs_) {
+        for (const auto &baseDir : baseDirs_) {
             bool hasCache = false;
             std::unordered_set<std::string> dirFilter;
             if (baseDir.second.isValid()) {
                 dirFilter = baseDir.second.lookup(iconname);
                 hasCache = true;
             }
-            for (auto &directory : directories_) {
+            for (const auto &directory : directories_) {
                 if ((hasCache && !dirFilter.count(directory.path())) ||
                     !directory.matchesSize(size, scale)) {
                     continue;
@@ -512,7 +519,7 @@ public:
             }
 
             if (scale != 1) {
-                for (auto &directory : scaledDirectories_) {
+                for (const auto &directory : scaledDirectories_) {
                     if ((hasCache && !dirFilter.count(directory.path())) ||
                         !directory.matchesSize(size, scale)) {
                         continue;
@@ -528,7 +535,7 @@ public:
         auto minSize = std::numeric_limits<int>::max();
         std::string closestFilename;
 
-        for (auto &baseDir : baseDirs_) {
+        for (const auto &baseDir : baseDirs_) {
             bool hasCache = false;
             std::unordered_set<std::string> dirFilter;
             if (baseDir.second.isValid()) {
@@ -552,12 +559,12 @@ public:
                     }
                 };
 
-            for (auto &directory : directories_) {
+            for (const auto &directory : directories_) {
                 checkDirectoryWithSize(directory);
             }
 
             if (scale != 1) {
-                for (auto &directory : scaledDirectories_) {
+                for (const auto &directory : scaledDirectories_) {
                     checkDirectoryWithSize(directory);
                 }
             }
@@ -570,7 +577,7 @@ public:
     lookupFallbackIcon(const std::string &iconname,
                        const std::vector<std::string> &extensions) const {
         auto defaultBasePath = stringutils::joinPath(home_, ".icons", iconname);
-        for (auto &ext : extensions) {
+        for (const auto &ext : extensions) {
             auto path = defaultBasePath + ext;
             if (fs::isreg(path)) {
                 return path;
@@ -585,23 +592,25 @@ public:
         return {};
     }
 
-    void prepare() {
-        auto path = stringutils::joinPath(home_, ".icons", internalName_);
-        if (fs::isdir(path)) {
-            baseDirs_.emplace_back(std::piecewise_construct,
-                                   std::forward_as_tuple(path),
-                                   std::forward_as_tuple(stringutils::joinPath(
-                                       path, "icon-theme.cache")));
+    void addBaseDir(const std::string &path) {
+        if (!fs::isdir(path)) {
+            return;
         }
+        baseDirs_.emplace_back(std::piecewise_construct,
+                               std::forward_as_tuple(path),
+                               std::forward_as_tuple(stringutils::joinPath(
+                                   path, "icon-theme.cache")));
+    }
+
+    void prepare() {
+        addBaseDir(stringutils::joinPath(home_, ".icons", internalName_));
+        addBaseDir(stringutils::joinPath(
+            standardPath_.userDirectory(StandardPath::Type::Data), "icons",
+            internalName_));
+
         for (auto &dataDir :
              standardPath_.directories(StandardPath::Type::Data)) {
-            auto path = stringutils::joinPath(dataDir, "icons", internalName_);
-            if (fs::isdir(path)) {
-                baseDirs_.emplace_back(
-                    std::piecewise_construct, std::forward_as_tuple(path),
-                    std::forward_as_tuple(
-                        stringutils::joinPath(path, "icon-theme.cache")));
-            }
+            addBaseDir(stringutils::joinPath(dataDir, "icons", internalName_));
         }
     }
 
@@ -664,8 +673,8 @@ FCITX_DEFINE_READ_ONLY_PROPERTY_PRIVATE(IconTheme,
                                         scaledDirectories);
 FCITX_DEFINE_READ_ONLY_PROPERTY_PRIVATE(IconTheme, std::string, example);
 
-std::string IconTheme::findIcon(const std::string &iconName, uint desiredSize,
-                                int scale,
+std::string IconTheme::findIcon(const std::string &iconName,
+                                unsigned int desiredSize, int scale,
                                 const std::vector<std::string> &extensions) {
     FCITX_D();
     return d->findIcon(iconName, desiredSize, scale, extensions);
@@ -684,12 +693,12 @@ enum class DesktopType {
 
 DesktopType getDesktopType() {
     std::string desktop;
-    auto desktopEnv = getenv("XDG_CURRENT_DESKTOP");
+    auto *desktopEnv = getenv("XDG_CURRENT_DESKTOP");
     if (desktopEnv) {
         desktop = desktopEnv;
     }
     if (desktop == "KDE") {
-        auto version = getenv("KDE_SESSION_VERSION");
+        auto *version = getenv("KDE_SESSION_VERSION");
         auto versionInt = 0;
         if (version) {
             try {
@@ -699,7 +708,8 @@ DesktopType getDesktopType() {
         }
         if (versionInt == 4) {
             return DesktopType::KDE4;
-        } else if (versionInt == 5) {
+        }
+        if (versionInt == 5) {
             return DesktopType::KDE5;
         }
     } else if (desktop == "X-Cinnamon") {
@@ -722,7 +732,7 @@ std::string getKdeTheme(int fd) {
     if (auto icons = rawConfig.get("Icons")) {
         if (auto theme = icons->get("Theme")) {
             if (!theme->value().empty() &&
-                theme->value().find("/") == std::string::npos) {
+                theme->value().find('/') == std::string::npos) {
                 return theme->value();
             }
         }
@@ -736,7 +746,7 @@ std::string getGtk3Theme(int fd) {
     if (auto settings = rawConfig.get("Settings")) {
         if (auto theme = settings->get("gtk-icon-theme-name")) {
             if (!theme->value().empty() &&
-                theme->value().find("/") == std::string::npos) {
+                theme->value().find('/') == std::string::npos) {
                 return theme->value();
             }
         }
@@ -744,7 +754,7 @@ std::string getGtk3Theme(int fd) {
     return "";
 }
 
-std::string getGtk2Theme(const std::string filename) {
+std::string getGtk2Theme(const std::string &filename) {
     // Evil Gtk2 use an non standard "ini-like" rc file.
     // Grep it and try to find the line we want ourselves.
     std::ifstream fin(filename, std::ios::in | std::ios::binary);
@@ -754,7 +764,7 @@ std::string getGtk2Theme(const std::string filename) {
         if (tokens.size() == 2 &&
             stringutils::trim(tokens[0]) == "gtk-icon-theme-name") {
             auto value = stringutils::trim(tokens[1]);
-            if (!value.empty() && value.find("/") == std::string::npos) {
+            if (!value.empty() && value.find('/') == std::string::npos) {
                 return value;
             }
         }
@@ -832,5 +842,17 @@ std::string IconTheme::defaultIconThemeName() {
     }
 
     return "Tango";
+}
+
+/// Rename fcitx-* icon to org.fcitx.Fcitx5.fcitx-* if in flatpak
+std::string IconTheme::iconName(const std::string &icon, bool inFlatpak) {
+#ifdef USE_FLATPAK_ICON
+    if (inFlatpak && stringutils::startsWith(icon, "fcitx-")) {
+        return stringutils::concat("org.fcitx.Fcitx5.", icon);
+    }
+#else
+    FCITX_UNUSED(inFlatpak);
+#endif
+    return icon;
 }
 } // namespace fcitx

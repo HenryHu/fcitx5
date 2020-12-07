@@ -1,23 +1,13 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "key.h"
+#include <cstring>
+#include <unordered_map>
 #include "charutils.h"
 #include "i18n.h"
 #include "keydata.h"
@@ -26,8 +16,6 @@
 #include "misc_p.h"
 #include "stringutils.h"
 #include "utf8.h"
-#include <cstring>
-#include <unordered_map>
 
 namespace fcitx {
 
@@ -47,6 +35,8 @@ std::unordered_map<KeySym, const char *, EnumHash> makeLookupKeyNameMap() {
         {FcitxKey_Control_R, NC_("Key name", "Right Control")},
         {FcitxKey_Super_L, NC_("Key name", "Left Super")},
         {FcitxKey_Super_R, NC_("Key name", "Right Super")},
+        {FcitxKey_Hyper_L, NC_("Key name", "Left Hyper")},
+        {FcitxKey_Hyper_R, NC_("Key name", "Right Hyper")},
         {FcitxKey_space, NC_("Key name", "Space")},
         {FcitxKey_Tab, NC_("Key name", "Tab")},
         {FcitxKey_BackSpace, NC_("Key name", "Backspace")},
@@ -250,9 +240,9 @@ std::unordered_map<KeySym, const char *, EnumHash> makeLookupKeyNameMap() {
 }
 
 const char *lookupName(KeySym sym) {
-    static std::unordered_map<KeySym, const char *, EnumHash> map =
+    static const std::unordered_map<KeySym, const char *, EnumHash> map =
         makeLookupKeyNameMap();
-    auto result = findValue(map, sym);
+    const auto *result = findValue(map, sym);
     return result ? *result : nullptr;
 }
 } // namespace
@@ -280,6 +270,8 @@ Key::Key(const char *keyString) : Key() {
     _CHECK_MODIFIER("Shift+", Shift)
     _CHECK_MODIFIER("SUPER_", Super)
     _CHECK_MODIFIER("Super+", Super)
+    _CHECK_MODIFIER("HYPER_", Mod3)
+    _CHECK_MODIFIER("Hyper+", Mod3)
 
 #undef _CHECK_MODIFIER
 
@@ -297,9 +289,44 @@ Key::Key(const char *keyString) : Key() {
     states_ = states;
 }
 
+bool Key::isReleaseOfModifier(const Key &key) const {
+    if (!key.isModifier()) {
+        return false;
+    }
+    auto states = keySymToStates(key.sym()) | key.states();
+    // Now we need reverse of keySymToStates.
+
+    std::vector<Key> keys;
+    keys.emplace_back(key.sym(), states);
+    if (key.states() & KeyState::Ctrl) {
+        keys.emplace_back(FcitxKey_Control_L, states);
+        keys.emplace_back(FcitxKey_Control_R, states);
+    }
+    if (key.states() & KeyState::Alt) {
+        keys.emplace_back(FcitxKey_Alt_L, states);
+        keys.emplace_back(FcitxKey_Alt_R, states);
+        keys.emplace_back(FcitxKey_Meta_L, states);
+        keys.emplace_back(FcitxKey_Meta_R, states);
+    }
+    if (key.states() & KeyState::Shift) {
+        keys.emplace_back(FcitxKey_Shift_L, states);
+        keys.emplace_back(FcitxKey_Shift_R, states);
+    }
+    if (key.states() & KeyState::Super) {
+        keys.emplace_back(FcitxKey_Super_L, states);
+        keys.emplace_back(FcitxKey_Super_R, states);
+    }
+    if (key.states() & KeyState::Mod3) {
+        keys.emplace_back(FcitxKey_Hyper_L, states);
+        keys.emplace_back(FcitxKey_Hyper_R, states);
+    }
+
+    return checkKeyList(keys);
+}
+
 bool Key::check(const Key &key) const {
-    auto states =
-        states_ & KeyStates({KeyState::Ctrl_Alt_Shift, KeyState::Super});
+    auto states = states_ & KeyStates({KeyState::Ctrl_Alt_Shift,
+                                       KeyState::Super, KeyState::Mod3});
 
     // key is keycode based, do key code based check.
     if (key.code()) {
@@ -338,6 +365,7 @@ bool Key::isSimple() const {
 
 bool Key::isModifier() const {
     return (sym_ == FcitxKey_Control_L || sym_ == FcitxKey_Control_R ||
+            sym_ == FcitxKey_Meta_L || sym_ == FcitxKey_Meta_R ||
             sym_ == FcitxKey_Alt_L || sym_ == FcitxKey_Alt_R ||
             sym_ == FcitxKey_Super_L || sym_ == FcitxKey_Super_R ||
             sym_ == FcitxKey_Hyper_L || sym_ == FcitxKey_Hyper_R ||
@@ -350,7 +378,14 @@ bool Key::isCursorMove() const {
              sym_ == FcitxKey_Page_Up || sym_ == FcitxKey_Page_Down ||
              sym_ == FcitxKey_Home || sym_ == FcitxKey_End) &&
             (states_ == KeyState::Ctrl || states_ == KeyState::Ctrl_Shift ||
-             states_ == KeyState::Shift || states_ == KeyState::None));
+             states_ == KeyState::Shift || states_ == KeyState::NoState));
+}
+
+bool Key::isKeyPad() const {
+    return ((sym_ >= FcitxKey_KP_Multiply && sym_ <= FcitxKey_KP_9) ||
+            (sym_ >= FcitxKey_KP_F1 && sym_ <= FcitxKey_KP_Delete) ||
+            sym_ == FcitxKey_KP_Space || sym_ == FcitxKey_KP_Tab ||
+            sym_ == FcitxKey_KP_Enter || sym_ == FcitxKey_KP_Equal);
 }
 
 bool Key::hasModifier() const { return !!(states_ & KeyState::SimpleMask); }
@@ -358,14 +393,14 @@ bool Key::hasModifier() const { return !!(states_ & KeyState::SimpleMask); }
 Key Key::normalize() const {
     Key key(*this);
     /* key state != 0 */
-    key.states_ =
-        key.states_ & KeyStates({KeyState::Ctrl_Alt_Shift, KeyState::Super});
+    key.states_ = key.states_ & KeyStates({KeyState::Ctrl_Alt_Shift,
+                                           KeyState::Super, KeyState::Mod3});
     if (key.states_) {
         if (key.states_ != KeyState::Shift && Key(key.sym_).isLAZ()) {
             key.sym_ = static_cast<KeySym>(key.sym_ + FcitxKey_A - FcitxKey_a);
         }
         /*
-         * alt shift 1 shoud be alt + !
+         * alt shift 1 should be alt + !
          * shift+s should be S
          */
 
@@ -409,17 +444,24 @@ std::string Key::toString(KeyStringFormat format) const {
             return std::string();
         }
 
-        if (sym == FcitxKey_ISO_Left_Tab)
+        if (sym == FcitxKey_ISO_Left_Tab) {
             sym = FcitxKey_Tab;
+        }
         key = keySymToString(sym, format);
     }
 
-    if (key.empty())
+    if (key.empty()) {
         return std::string();
+    }
 
     std::string str;
+    auto states = states_;
+    if (format == KeyStringFormat::Localized && isModifier()) {
+        states &= (~keySymToStates(sym_));
+    }
+
 #define _APPEND_MODIFIER_STRING(STR, VALUE)                                    \
-    if (states_ & KeyState::VALUE) {                                           \
+    if (states & KeyState::VALUE) {                                            \
         str += STR;                                                            \
         str += "+";                                                            \
     }
@@ -428,11 +470,13 @@ std::string Key::toString(KeyStringFormat format) const {
         _APPEND_MODIFIER_STRING("Alt", Alt)
         _APPEND_MODIFIER_STRING("Shift", Shift)
         _APPEND_MODIFIER_STRING("Super", Super)
+        _APPEND_MODIFIER_STRING("Hyper", Mod3)
     } else {
         _APPEND_MODIFIER_STRING(C_("Key name", "Control"), Ctrl)
         _APPEND_MODIFIER_STRING(C_("Key name", "Alt"), Alt)
         _APPEND_MODIFIER_STRING(C_("Key name", "Shift"), Shift)
         _APPEND_MODIFIER_STRING(C_("Key name", "Super"), Super)
+        _APPEND_MODIFIER_STRING(C_("Key name", "Hyper"), Mod3)
     }
 
 #undef _APPEND_MODIFIER_STRING
@@ -448,6 +492,8 @@ KeyStates Key::keySymToStates(KeySym sym) {
         return KeyState::Ctrl;
     case FcitxKey_Alt_L:
     case FcitxKey_Alt_R:
+    case FcitxKey_Meta_L:
+    case FcitxKey_Meta_R:
         return KeyState::Alt;
     case FcitxKey_Shift_L:
     case FcitxKey_Shift_R:
@@ -457,14 +503,14 @@ KeyStates Key::keySymToStates(KeySym sym) {
         return KeyState::Super;
     case FcitxKey_Hyper_L:
     case FcitxKey_Hyper_R:
-        return KeyState::Hyper;
+        return KeyState::Mod3;
     default:
         return KeyStates();
     }
 }
 
 KeySym Key::keySymFromString(const std::string &keyString) {
-    auto value = std::lower_bound(
+    const auto *value = std::lower_bound(
         keyValueByNameOffset,
         keyValueByNameOffset + FCITX_ARRAY_SIZE(keyValueByNameOffset),
         keyString, [](const uint32_t &idx, const std::string &str) {
@@ -477,7 +523,7 @@ KeySym Key::keySymFromString(const std::string &keyString) {
         return static_cast<KeySym>(*value);
     }
 
-    auto compat = std::lower_bound(
+    const auto *compat = std::lower_bound(
         keyNameListCompat,
         keyNameListCompat + FCITX_ARRAY_SIZE(keyNameListCompat), keyString,
         [](const KeyNameListCompat &c, const std::string &str) {
@@ -493,9 +539,8 @@ KeySym Key::keySymFromString(const std::string &keyString) {
         if (chr > 0) {
             if (fcitx::utf8::ncharByteLength(keyString.begin(), 1) == 1) {
                 return static_cast<KeySym>(keyString[0]);
-            } else {
-                return keySymFromUnicode(chr);
             }
+            return keySymFromUnicode(chr);
         }
     }
 
@@ -504,8 +549,16 @@ KeySym Key::keySymFromString(const std::string &keyString) {
 
 std::string Key::keySymToString(KeySym sym, KeyStringFormat format) {
     if (format == KeyStringFormat::Localized) {
-        if (auto name = lookupName(sym)) {
+        if (const auto *name = lookupName(sym)) {
             return C_("Key name", name);
+        }
+        auto code = keySymToUnicode(sym);
+        if (code < 0x7f) {
+            if (charutils::isprint(code)) {
+                return utf8::UCS4ToUTF8(code);
+            }
+        } else {
+            return utf8::UCS4ToUTF8(code);
         }
     }
 
@@ -523,7 +576,7 @@ std::string Key::keySymToString(KeySym sym, KeyStringFormat format) {
     return std::string();
 }
 
-KeySym Key::keySymFromUnicode(uint32_t wc) {
+KeySym Key::keySymFromUnicode(uint32_t unicode) {
     int min = 0;
     int max = sizeof(gdk_unicode_to_keysym_tab) /
                   sizeof(gdk_unicode_to_keysym_tab[0]) -
@@ -531,17 +584,19 @@ KeySym Key::keySymFromUnicode(uint32_t wc) {
     int mid;
 
     /* First check for Latin-1 characters (1:1 mapping) */
-    if ((wc >= 0x0020 && wc <= 0x007e) || (wc >= 0x00a0 && wc <= 0x00ff))
-        return static_cast<KeySym>(wc);
+    if ((unicode >= 0x0020 && unicode <= 0x007e) ||
+        (unicode >= 0x00a0 && unicode <= 0x00ff)) {
+        return static_cast<KeySym>(unicode);
+    }
 
     /* Binary search in table */
     while (max >= min) {
         mid = (min + max) / 2;
-        if (gdk_unicode_to_keysym_tab[mid].ucs < wc)
+        if (gdk_unicode_to_keysym_tab[mid].ucs < unicode) {
             min = mid + 1;
-        else if (gdk_unicode_to_keysym_tab[mid].ucs > wc)
+        } else if (gdk_unicode_to_keysym_tab[mid].ucs > unicode) {
             max = mid - 1;
-        else {
+        } else {
             /* found it */
             return static_cast<KeySym>(gdk_unicode_to_keysym_tab[mid].keysym);
         }
@@ -551,10 +606,10 @@ KeySym Key::keySymFromUnicode(uint32_t wc) {
      * No matching keysym value found, return Unicode value plus 0x01000000
      * (a convention introduced in the UTF-8 work on xterm).
      */
-    return static_cast<KeySym>(wc | 0x01000000);
+    return static_cast<KeySym>(unicode | 0x01000000);
 }
 
-uint32_t Key::keySymToUnicode(KeySym keyval) {
+uint32_t Key::keySymToUnicode(KeySym sym) {
     int min = 0;
     int max = sizeof(gdk_keysym_to_unicode_tab) /
                   sizeof(gdk_keysym_to_unicode_tab[0]) -
@@ -562,23 +617,24 @@ uint32_t Key::keySymToUnicode(KeySym keyval) {
     int mid;
 
     /* First check for Latin-1 characters (1:1 mapping) */
-    if ((keyval >= 0x0020 && keyval <= 0x007e) ||
-        (keyval >= 0x00a0 && keyval <= 0x00ff))
-        return keyval;
+    if ((sym >= 0x0020 && sym <= 0x007e) || (sym >= 0x00a0 && sym <= 0x00ff)) {
+        return sym;
+    }
 
     /* Also check for directly encoded 24-bit UCS characters:
      */
-    if ((keyval & 0xff000000) == 0x01000000)
-        return keyval & 0x00ffffff;
+    if ((sym & 0xff000000) == 0x01000000) {
+        return sym & 0x00ffffff;
+    }
 
     /* binary search in table */
     while (max >= min) {
         mid = (min + max) / 2;
-        if (gdk_keysym_to_unicode_tab[mid].keysym < keyval)
+        if (gdk_keysym_to_unicode_tab[mid].keysym < sym) {
             min = mid + 1;
-        else if (gdk_keysym_to_unicode_tab[mid].keysym > keyval)
+        } else if (gdk_keysym_to_unicode_tab[mid].keysym > sym) {
             max = mid - 1;
-        else {
+        } else {
             /* found it */
             return gdk_keysym_to_unicode_tab[mid].ucs;
         }
@@ -588,24 +644,24 @@ uint32_t Key::keySymToUnicode(KeySym keyval) {
     return 0;
 }
 
-std::string Key::keySymToUTF8(KeySym keyval) {
-    return utf8::UCS4ToUTF8(keySymToUnicode(keyval));
+std::string Key::keySymToUTF8(KeySym sym) {
+    return utf8::UCS4ToUTF8(keySymToUnicode(sym));
 }
 
-std::vector<Key> Key::keyListFromString(const std::string &keyString) {
+std::vector<Key> Key::keyListFromString(const std::string &str) {
     std::vector<Key> keyList;
 
-    auto lastPos = keyString.find_first_not_of(FCITX_WHITESPACE, 0);
-    auto pos = keyString.find_first_of(FCITX_WHITESPACE, lastPos);
+    auto lastPos = str.find_first_not_of(FCITX_WHITESPACE, 0);
+    auto pos = str.find_first_of(FCITX_WHITESPACE, lastPos);
 
     while (std::string::npos != pos || std::string::npos != lastPos) {
-        Key key(keyString.substr(lastPos, pos - lastPos));
+        Key key(str.substr(lastPos, pos - lastPos));
 
         if (key.sym() != FcitxKey_None) {
             keyList.push_back(key);
         }
-        lastPos = keyString.find_first_not_of(FCITX_WHITESPACE, pos);
-        pos = keyString.find_first_of(FCITX_WHITESPACE, lastPos);
+        lastPos = str.find_first_not_of(FCITX_WHITESPACE, pos);
+        pos = str.find_first_of(FCITX_WHITESPACE, lastPos);
     }
 
     return keyList;

@@ -101,7 +101,7 @@ function(_fcitx5_get_unique_target_name _name _unique_name)
 endfunction()
 
 function(fcitx5_translate_desktop_file SRC DEST)
-  set(options)
+  set(options XML)
   set(one_value_args PO_DIRECTORY)
   set(multi_value_args KEYWORDS)
   cmake_parse_arguments(FCITX5_TRANSLATE
@@ -116,10 +116,10 @@ function(fcitx5_translate_desktop_file SRC DEST)
   get_filename_component(SRC_BASE ${SRC} NAME)
 
   set(KEYWORD_ARGS)
-  if (NOT PO_DIRECTORY)
-    set(PO_DIRECTORY "${PROJECT_SOURCE_DIR}/po")
+  if (NOT FCITX5_TRANSLATE_PO_DIRECTORY)
+    set(FCITX5_TRANSLATE_PO_DIRECTORY "${PROJECT_SOURCE_DIR}/po")
   endif()
-  file(GLOB PO_FILES "${PO_DIRECTORY}/*.po")
+  file(GLOB PO_FILES "${FCITX5_TRANSLATE_PO_DIRECTORY}/*.po")
 
   if (FCITX5_TRANSLATE_KEYWORDS)
     list(APPEND KEYWORD_ARGS "--keyword=")
@@ -128,8 +128,14 @@ function(fcitx5_translate_desktop_file SRC DEST)
     endforeach()
   endif()
 
+  if (FCITX5_TRANSLATE_XML)
+    set(TYPE_ARG "--xml")
+  else()
+    set(TYPE_ARG "--desktop")
+  endif()
+
   add_custom_command(OUTPUT "${DEST}"
-    COMMAND "${GETTEXT_MSGFMT_EXECUTABLE}" --desktop -d ${PO_DIRECTORY}
+    COMMAND "${GETTEXT_MSGFMT_EXECUTABLE}" "${TYPE_ARG}" -d ${FCITX5_TRANSLATE_PO_DIRECTORY}
             ${KEYWORD_ARGS} --template "${SRC}" -o "${DEST}"
     DEPENDS "${SRC}" ${PO_FILES})
   _fcitx5_get_unique_target_name("${SRC_BASE}-fmt" uniqueTargetName)
@@ -152,9 +158,33 @@ function(fcitx5_install_translation domain)
         DEPENDS ${ABS_PO_FILE}
     )
 
-    install(FILES ${MO_FILE} RENAME ${domain}.mo DESTINATION share/locale/${PO_LANG}/LC_MESSAGES)
+    install(FILES ${MO_FILE} RENAME ${domain}.mo DESTINATION ${FCITX_INSTALL_LOCALEDIR}/${PO_LANG}/LC_MESSAGES)
     set(MO_FILES ${MO_FILES} ${MO_FILE})
   endforeach ()
   add_custom_target("${domain}-translation" ALL DEPENDS ${MO_FILES})
 
+endfunction()
+
+function(fcitx5_add_i18n_definition)
+  set(options)
+  set(one_value_args LOCALE_INSTALL_DIR)
+  set(multi_value_args TARGETS)
+  cmake_parse_arguments(FCITX5_AID
+    "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+  if (FCITX5_AID_LOCALE_INSTALL_DIR)
+    set(_LOCALE_DIR "${FCITX5_AID_LOCALE_INSTALL_DIR}")
+  else()
+    set(_LOCALE_DIR "${FCITX_INSTALL_LOCALEDIR}")
+  endif()
+  string(CONFIGURE ${_LOCALE_DIR} LOCALE_DIR ESCAPE_QUOTES)
+
+  if(FCITX5_AID_TARGETS)
+    message(${FCITX5_AID_TARGETS})
+    foreach(TARGET_NAME IN LISTS FCITX5_AID_TARGETS)
+        target_compile_definitions(${TARGET_NAME} PRIVATE -DFCITX_INSTALL_LOCALEDIR=\"${LOCALE_DIR}\")
+    endforeach()
+  else()
+    add_definitions(-DFCITX_INSTALL_LOCALEDIR=\"${LOCALE_DIR}\")
+  endif()
 endfunction()

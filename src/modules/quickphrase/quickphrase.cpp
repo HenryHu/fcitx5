@@ -1,23 +1,13 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
-#include "config.h"
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
+#include "quickphrase.h"
+#include <fcntl.h>
 
+#include <utility>
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/i18n.h"
@@ -28,8 +18,6 @@
 #include "fcitx/candidatelist.h"
 #include "fcitx/inputcontextmanager.h"
 #include "fcitx/inputpanel.h"
-#include "quickphrase.h"
-#include <fcntl.h>
 
 namespace fcitx {
 
@@ -65,7 +53,7 @@ public:
 };
 
 QuickPhrase::QuickPhrase(Instance *instance)
-    : instance_(instance),
+    : instance_(instance), spellProvider_(this),
       factory_([this](InputContext &) { return new QuickPhraseState(this); }) {
     instance_->inputContextManager().registerProperty("quickphraseState",
                                                       &factory_);
@@ -87,7 +75,7 @@ QuickPhrase::QuickPhrase(Instance *instance)
 
     auto reset = [this](Event &event) {
         auto &icEvent = static_cast<InputContextEvent &>(event);
-        auto state = icEvent.inputContext()->propertyFor(&factory_);
+        auto *state = icEvent.inputContext()->propertyFor(&factory_);
         if (state->enabled_) {
             state->reset(icEvent.inputContext());
         }
@@ -103,8 +91,8 @@ QuickPhrase::QuickPhrase(Instance *instance)
         EventType::InputContextKeyEvent, EventWatcherPhase::PreInputMethod,
         [this](Event &event) {
             auto &keyEvent = static_cast<KeyEvent &>(event);
-            auto inputContext = keyEvent.inputContext();
-            auto state = inputContext->propertyFor(&factory_);
+            auto *inputContext = keyEvent.inputContext();
+            auto *state = inputContext->propertyFor(&factory_);
             if (!state->enabled_) {
                 return;
             }
@@ -119,23 +107,26 @@ QuickPhrase::QuickPhrase(Instance *instance)
             if (candidateList) {
                 int idx = keyEvent.key().keyListIndex(selectionKeys_);
                 if (idx >= 0) {
-                    keyEvent.accept();
                     if (idx < candidateList->size()) {
+                        keyEvent.accept();
                         candidateList->candidate(idx).select(inputContext);
+                        return;
                     }
-                    return;
                 }
 
                 if (keyEvent.key().check(FcitxKey_space) &&
                     candidateList->size()) {
                     keyEvent.accept();
-                    candidateList->candidate(0).select(inputContext);
+                    if (candidateList->cursorIndex() >= 0) {
+                        candidateList->candidate(candidateList->cursorIndex())
+                            .select(inputContext);
+                    }
                     return;
                 }
 
                 if (keyEvent.key().checkKeyList(
                         instance_->globalConfig().defaultPrevPage())) {
-                    auto pageable = candidateList->toPageable();
+                    auto *pageable = candidateList->toPageable();
                     if (!pageable->hasPrev()) {
                         if (pageable->usedNextBefore()) {
                             event.accept();
@@ -158,6 +149,26 @@ QuickPhrase::QuickPhrase(Instance *instance)
                         UserInterfaceComponent::InputPanel);
                     return;
                 }
+
+                if (candidateList->size() &&
+                    keyEvent.key().checkKeyList(
+                        instance_->globalConfig().defaultPrevCandidate())) {
+                    keyEvent.filterAndAccept();
+                    candidateList->toCursorMovable()->prevCandidate();
+                    inputContext->updateUserInterface(
+                        UserInterfaceComponent::InputPanel);
+                    return;
+                }
+
+                if (candidateList->size() &&
+                    keyEvent.key().checkKeyList(
+                        instance_->globalConfig().defaultNextCandidate())) {
+                    keyEvent.filterAndAccept();
+                    candidateList->toCursorMovable()->nextCandidate();
+                    inputContext->updateUserInterface(
+                        UserInterfaceComponent::InputPanel);
+                    return;
+                }
             }
 
             // and by pass all modifier
@@ -168,10 +179,11 @@ QuickPhrase::QuickPhrase(Instance *instance)
                 keyEvent.accept();
                 state->reset(inputContext);
                 return;
-            } else if (keyEvent.key().check(FcitxKey_Return)) {
+            }
+            if (keyEvent.key().check(FcitxKey_Return)) {
                 keyEvent.accept();
                 if (!state->typed_ && state->buffer_.empty() &&
-                    state->str_.size() && state->alt_.size()) {
+                    !state->str_.empty() && !state->alt_.empty()) {
                     inputContext->commitString(state->alt_);
                 } else {
                     if (state->buffer_.size() + state->prefix_.size()) {
@@ -181,7 +193,8 @@ QuickPhrase::QuickPhrase(Instance *instance)
                 }
                 state->reset(inputContext);
                 return;
-            } else if (keyEvent.key().check(FcitxKey_BackSpace)) {
+            }
+            if (keyEvent.key().check(FcitxKey_BackSpace)) {
                 if (state->buffer_.empty()) {
                     state->reset(inputContext);
                 } else {
@@ -195,9 +208,9 @@ QuickPhrase::QuickPhrase(Instance *instance)
                 }
                 keyEvent.accept();
                 return;
-            } else if (!state->typed_ && state->str_.size() &&
-                       state->buffer_.empty() &&
-                       keyEvent.key().check(state->key_)) {
+            }
+            if (!state->typed_ && !state->str_.empty() &&
+                state->buffer_.empty() && keyEvent.key().check(state->key_)) {
                 keyEvent.accept();
                 inputContext->commitString(state->str_);
                 state->reset(inputContext);
@@ -231,94 +244,60 @@ QuickPhrase::~QuickPhrase() {}
 
 class QuickPhraseCandidateWord : public CandidateWord {
 public:
-    QuickPhraseCandidateWord(QuickPhrase *q, Text text)
-        : CandidateWord(std::move(text)), q_(q) {}
+    QuickPhraseCandidateWord(QuickPhrase *q, std::string commit,
+                             const std::string &display,
+                             QuickPhraseAction action)
+        : CandidateWord(Text(display)), q_(q), commit_(std::move(commit)),
+          action_(action) {}
 
     void select(InputContext *inputContext) const override {
-        auto commit = text().stringAt(0);
-        auto state = inputContext->propertyFor(&q_->factory());
-        state->reset(inputContext);
-        inputContext->inputPanel().reset();
-        inputContext->updatePreedit();
-        inputContext->updateUserInterface(UserInterfaceComponent::InputPanel,
-                                          true);
-        inputContext->commitString(commit);
+        auto *state = inputContext->propertyFor(&q_->factory());
+        if (action_ == QuickPhraseAction::TypeToBuffer) {
+            state->buffer_.type(commit_);
+            state->typed_ = true;
+
+            q_->updateUI(inputContext);
+        } else if (action_ == QuickPhraseAction::Commit) {
+            state->reset(inputContext);
+            inputContext->inputPanel().reset();
+            inputContext->updatePreedit();
+            inputContext->updateUserInterface(
+                UserInterfaceComponent::InputPanel, true);
+            inputContext->commitString(commit_);
+        }
+        // DoNothing and other values are also handled here.
     }
 
     QuickPhrase *q_;
+    std::string commit_;
+    QuickPhraseAction action_;
 };
 
-void QuickPhrase::updateUI(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
-    inputContext->inputPanel().reset();
-    if (!state->buffer_.empty()) {
-        auto start = map_.lower_bound(state->buffer_.userInput());
-        auto end = map_.end();
-        auto candidateList = std::make_unique<CommonCandidateList>();
-        candidateList->setPageSize(instance_->globalConfig().defaultPageSize());
-        for (; start != end; start++) {
-            if (!stringutils::startsWith(start->first,
-                                         state->buffer_.userInput())) {
-                break;
-            }
-            Text text;
-            text.append(start->second);
-            text.append(" ");
-            text.append(start->first.substr(state->buffer_.userInput().size()));
-            candidateList->append<QuickPhraseCandidateWord>(this,
-                                                            std::move(text));
-        }
-        candidateList->setSelectionKey(selectionKeys_);
-        inputContext->inputPanel().setCandidateList(std::move(candidateList));
+void QuickPhrase::setSelectionKeys(QuickPhraseAction action) {
+    std::array<KeySym, 10> syms;
+    switch (action) {
+    case QuickPhraseAction::AlphaSelection:
+        syms = {
+            FcitxKey_a, FcitxKey_b, FcitxKey_c, FcitxKey_e, FcitxKey_f,
+            FcitxKey_g, FcitxKey_h, FcitxKey_i, FcitxKey_j, FcitxKey_k,
+        };
+        break;
+    case QuickPhraseAction::NoneSelection:
+        syms = {
+            FcitxKey_None, FcitxKey_None, FcitxKey_None, FcitxKey_None,
+            FcitxKey_None, FcitxKey_None, FcitxKey_None, FcitxKey_None,
+            FcitxKey_None, FcitxKey_None,
+        };
+        break;
+    default:
+        syms = {
+            FcitxKey_1, FcitxKey_2, FcitxKey_3, FcitxKey_4, FcitxKey_5,
+            FcitxKey_6, FcitxKey_7, FcitxKey_8, FcitxKey_9, FcitxKey_0,
+        };
+        break;
     }
-    Text preedit;
-    if (state->prefix_.size()) {
-        preedit.append(state->prefix_);
-    }
-    preedit.append(state->buffer_.userInput());
-    if (state->buffer_.size()) {
-        preedit.setCursor(state->prefix_.size() +
-                          state->buffer_.cursorByChar());
-    }
-
-    Text auxUp(_("Quick Phrase: "));
-    if (!state->typed_) {
-        auxUp.append(state->text_);
-    }
-    // inputContext->inputPanel().setClientPreedit(preedit);
-    inputContext->inputPanel().setAuxUp(auxUp);
-    inputContext->inputPanel().setPreedit(preedit);
-    inputContext->updatePreedit();
-    inputContext->updateUserInterface(UserInterfaceComponent::InputPanel);
-}
-
-void QuickPhrase::reloadConfig() {
-    map_.clear();
-    auto file = StandardPath::global().open(StandardPath::Type::PkgData,
-                                            "data/QuickPhrase.mb", O_RDONLY);
-    auto files = StandardPath::global().multiOpen(
-        StandardPath::Type::PkgData, "data/quickphrase.d/", O_RDONLY,
-        filter::Suffix(".mb"));
-    auto disableFiles = StandardPath::global().multiOpen(
-        StandardPath::Type::PkgData, "quickphrase.d/", O_RDONLY,
-        filter::Suffix(".mb.disable"));
-    if (file.fd() >= 0) {
-        load(file);
-    }
-
-    for (auto &p : files) {
-        if (disableFiles.count(p.first)) {
-            continue;
-        }
-        load(p.second);
-    }
-    readAsIni(config_, "conf/quickphrase.conf");
 
     selectionKeys_.clear();
-    KeySym syms[] = {
-        FcitxKey_1, FcitxKey_2, FcitxKey_3, FcitxKey_4, FcitxKey_5,
-        FcitxKey_6, FcitxKey_7, FcitxKey_8, FcitxKey_9, FcitxKey_0,
-    };
 
     KeyStates states;
     switch (config_.chooseModifier.value()) {
@@ -340,109 +319,98 @@ void QuickPhrase::reloadConfig() {
     }
 }
 
-enum class UnescapeState { NORMAL, ESCAPE };
+void QuickPhrase::updateUI(InputContext *inputContext) {
+    auto *state = inputContext->propertyFor(&factory_);
+    inputContext->inputPanel().reset();
+    if (!state->buffer_.empty()) {
+        auto candidateList = std::make_unique<CommonCandidateList>();
+        candidateList->setPageSize(instance_->globalConfig().defaultPageSize());
+        QuickPhraseProvider *providers[] = {&callbackProvider_,
+                                            &builtinProvider_, &spellProvider_};
+        QuickPhraseAction selectionKeyAction =
+            QuickPhraseAction::DigitSelection;
+        std::string autoCommit;
+        bool autoCommitSet = false;
+        for (auto *provider : providers) {
+            if (!provider->populate(
+                    inputContext, state->buffer_.userInput(),
+                    [this, &candidateList, &selectionKeyAction, &autoCommit,
+                     &autoCommitSet](const std::string &word,
+                                     const std::string &aux,
+                                     QuickPhraseAction action) {
+                        if (!autoCommitSet &&
+                            action == QuickPhraseAction::AutoCommit) {
+                            autoCommit = word;
+                            autoCommitSet = true;
+                        }
 
-bool _unescape_string(std::string &str, bool unescapeQuote) {
-    if (str.empty()) {
-        return true;
+                        if (autoCommitSet) {
+                            return;
+                        }
+                        if (!word.empty()) {
+                            candidateList->append<QuickPhraseCandidateWord>(
+                                this, word, aux, action);
+                        } else {
+                            if (action == QuickPhraseAction::DigitSelection ||
+                                action == QuickPhraseAction::AlphaSelection ||
+                                action == QuickPhraseAction::NoneSelection) {
+                                selectionKeyAction = action;
+                            }
+                        }
+                    })) {
+                break;
+            }
+        }
+
+        if (autoCommitSet) {
+            if (!autoCommit.empty()) {
+                inputContext->commitString(autoCommit);
+            }
+            state->reset(inputContext);
+            return;
+        }
+
+        setSelectionKeys(selectionKeyAction);
+        candidateList->setSelectionKey(selectionKeys_);
+        if (candidateList->size()) {
+            candidateList->setGlobalCursorIndex(0);
+        }
+        inputContext->inputPanel().setCandidateList(std::move(candidateList));
+    }
+    Text preedit;
+    if (!state->prefix_.empty()) {
+        preedit.append(state->prefix_);
+    }
+    preedit.append(state->buffer_.userInput());
+    if (!state->buffer_.empty()) {
+        preedit.setCursor(state->prefix_.size() +
+                          state->buffer_.cursorByChar());
     }
 
-    size_t i = 0;
-    size_t j = 0;
-    UnescapeState state = UnescapeState::NORMAL;
-    do {
-        switch (state) {
-        case UnescapeState::NORMAL:
-            if (str[i] == '\\') {
-                state = UnescapeState::ESCAPE;
-            } else {
-                str[j] = str[i];
-                j++;
-            }
-            break;
-        case UnescapeState::ESCAPE:
-            if (str[i] == '\\') {
-                str[j] = '\\';
-                j++;
-            } else if (str[i] == 'n') {
-                str[j] = '\n';
-                j++;
-            } else if (str[i] == '\"' && unescapeQuote) {
-                str[j] = '\"';
-                j++;
-            } else {
-                return false;
-            }
-            state = UnescapeState::NORMAL;
-            break;
-        }
-    } while (str[i++]);
-    str.resize(j - 1);
-    return true;
+    Text auxUp(_("Quick Phrase: "));
+    if (!state->typed_) {
+        auxUp.append(state->text_);
+    }
+    // inputContext->inputPanel().setClientPreedit(preedit);
+    inputContext->inputPanel().setAuxUp(auxUp);
+    inputContext->inputPanel().setPreedit(preedit);
+    inputContext->updatePreedit();
+    inputContext->updateUserInterface(UserInterfaceComponent::InputPanel);
 }
 
-typedef std::unique_ptr<FILE, decltype(&fclose)> ScopedFILE;
-void QuickPhrase::load(StandardPathFile &file) {
-    FILE *f = fdopen(file.fd(), "rb");
-    if (!f) {
-        return;
-    }
-    ScopedFILE fp{f, fclose};
-    file.release();
-
-    char *buf = nullptr;
-    size_t len = 0;
-    while (getline(&buf, &len, fp.get()) != -1) {
-        std::string strBuf(buf);
-
-        auto pair = stringutils::trimInplace(strBuf);
-        std::string::size_type start = pair.first, end = pair.second;
-        if (start == end) {
-            continue;
-        }
-        std::string text(strBuf.begin() + start, strBuf.begin() + end);
-        if (!utf8::validate(text)) {
-            continue;
-        }
-
-        auto pos = text.find_first_of(FCITX_WHITESPACE);
-        if (pos == std::string::npos) {
-            continue;
-        }
-
-        auto word = text.find_first_not_of(FCITX_WHITESPACE, pos);
-        if (word == std::string::npos) {
-            continue;
-        }
-
-        if (text.back() == '\"' &&
-            (text[word] != '\"' || word + 1 != text.size())) {
-            continue;
-        }
-
-        std::string key(text.begin(), text.begin() + pos);
-        std::string wordString;
-
-        bool escapeQuote;
-        if (text.back() == '\"' && text[word] == '\"') {
-            wordString = text.substr(word + 1, text.size() - word - 1);
-            escapeQuote = true;
-        } else {
-            wordString = text.substr(word);
-            escapeQuote = false;
-        }
-        _unescape_string(wordString, escapeQuote);
-
-        map_.emplace(std::move(key), std::move(wordString));
-    }
-
-    free(buf);
+void QuickPhrase::reloadConfig() {
+    builtinProvider_.reloadConfig();
+    readAsIni(config_, "conf/quickphrase.conf");
+}
+std::unique_ptr<HandlerTableEntry<QuickPhraseProviderCallback>>
+QuickPhrase::addProvider(QuickPhraseProviderCallback callback) {
+    return callbackProvider_.addCallback(std::move(callback));
 }
 
 void QuickPhrase::trigger(InputContext *ic, const std::string &text,
                           const std::string &prefix, const std::string &str,
                           const std::string &alt, const Key &key) {
-    auto state = ic->propertyFor(&factory_);
+    auto *state = ic->propertyFor(&factory_);
     state->typed_ = false;
     state->enabled_ = true;
     state->text_ = text;

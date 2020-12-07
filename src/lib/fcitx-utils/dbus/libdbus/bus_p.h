@@ -1,28 +1,16 @@
-//
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_DBUS_BUS_P_H_
 #define _FCITX_UTILS_DBUS_BUS_P_H_
 
+#include <dbus/dbus.h>
 #include "../../log.h"
 #include "../bus.h"
 #include "servicenamecache.h"
-#include <dbus/dbus.h>
 
 namespace fcitx {
 namespace dbus {
@@ -58,7 +46,7 @@ public:
 
     ~DBusObjectVTableSlot() {}
 
-    std::string getXml();
+    std::string getXml() const;
 
     std::string path_;
     std::string interface_;
@@ -72,7 +60,7 @@ public:
 class BusPrivate : public TrackableObject<BusPrivate> {
 public:
     BusPrivate(Bus *bus)
-        : bus_(bus), conn_(nullptr),
+        : bus_(bus),
           matchRuleSet_(
               [this](const MatchRule &rule) {
                   if (!conn_) {
@@ -83,13 +71,10 @@ public:
                       nameCache()->addWatch(rule.service());
                   }
                   FCITX_LIBDBUS_DEBUG() << "Add dbus match: " << rule.rule();
-                  dbus_bus_add_match(conn_, rule.rule().c_str(),
+                  dbus_bus_add_match(conn_.get(), rule.rule().c_str(),
                                      &error.error());
                   bool isError = dbus_error_is_set(&error.error());
-                  if (!isError) {
-                      return true;
-                  }
-                  return false;
+                  return !isError;
               },
               [this](const MatchRule &rule) {
                   if (!conn_) {
@@ -99,7 +84,8 @@ public:
                       nameCache()->removeWatch(rule.service());
                   }
                   FCITX_LIBDBUS_DEBUG() << "Remove dbus match: " << rule.rule();
-                  dbus_bus_remove_match(conn_, rule.rule().c_str(), nullptr);
+                  dbus_bus_remove_match(conn_.get(), rule.rule().c_str(),
+                                        nullptr);
               }),
           objectRegistration_(
               [this](const std::string &path) {
@@ -110,37 +96,33 @@ public:
                   memset(&vtable, 0, sizeof(vtable));
 
                   vtable.message_function = DBusObjectPathVTableMessageCallback;
-                  if (!dbus_connection_register_object_path(conn_, path.c_str(),
-                                                            &vtable, this)) {
-                      return false;
-                  }
-                  return true;
+                  return dbus_connection_register_object_path(
+                             conn_.get(), path.c_str(), &vtable, this) != 0;
               },
               [this](const std::string &path) {
                   if (!conn_) {
                       return;
                   }
 
-                  dbus_connection_unregister_object_path(conn_, path.c_str());
+                  dbus_connection_unregister_object_path(conn_.get(),
+                                                         path.c_str());
               }) {}
 
     ~BusPrivate() {
         if (conn_) {
-            dbus_connection_flush(conn_);
-            dbus_connection_close(conn_);
-            dbus_connection_unref(conn_);
+            dbus_connection_flush(conn_.get());
         }
-        conn_ = nullptr;
     }
 
-    void dispatch() {
+    void dispatch() const {
         if (!conn_) {
             return;
         }
-        dbus_connection_ref(conn_);
-        while (dbus_connection_dispatch(conn_) == DBUS_DISPATCH_DATA_REMAINS) {
+        dbus_connection_ref(conn_.get());
+        while (dbus_connection_dispatch(conn_.get()) ==
+               DBUS_DISPATCH_DATA_REMAINS) {
         }
-        dbus_connection_unref(conn_);
+        dbus_connection_unref(conn_.get());
     }
 
     static bool needWatchService(const MatchRule &rule) {
@@ -157,12 +139,19 @@ public:
     }
 
     DBusObjectVTableSlot *findSlot(const std::string &path,
-                                   const std::string interface);
+                                   const std::string &interface);
     bool objectVTableCallback(Message &message);
+
+    static void DBusConnectionCloser(DBusConnection *conn) {
+        if (conn) {
+            dbus_connection_close(conn);
+            dbus_connection_unref(conn);
+        }
+    }
 
     Bus *bus_;
     std::string address_;
-    DBusConnection *conn_;
+    UniqueCPtr<DBusConnection, DBusConnectionCloser> conn_;
     MultiHandlerTable<MatchRule, int> matchRuleSet_;
     HandlerTable<std::pair<MatchRule, MessageCallback>> matchHandlers_;
     HandlerTable<MessageCallback> filterHandlers_;
@@ -184,14 +173,14 @@ public:
         : path_(path), callback_(std::move(callback)) {}
 
     ~DBusObjectSlot() {
-        if (auto conn = connection()) {
+        if (auto *conn = connection()) {
             dbus_connection_unregister_object_path(conn, path_.data());
         }
     }
 
-    DBusConnection *connection() {
-        if (auto bus = bus_.get()) {
-            return bus->conn_;
+    DBusConnection *connection() const {
+        if (auto *bus = bus_.get()) {
+            return bus->conn_.get();
         }
         return nullptr;
     }

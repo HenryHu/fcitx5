@@ -1,12 +1,17 @@
-
+/*
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "i18n.h"
-#include "fcitxutils_export.h"
-#include "log.h"
-#include "standardpath.h"
-#include <libintl.h>
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <libintl.h>
+#include "fcitxutils_export.h"
+#include "log.h"
+#include "standardpath.h"
 
 namespace fcitx {
 
@@ -17,14 +22,14 @@ public:
         if (domains_.count(domain)) {
             return;
         }
-        auto localedir = StandardPath::fcitxPath("localedir");
+        const auto *localedir = StandardPath::fcitxPath("localedir");
         if (!dir) {
             dir = localedir;
         }
         bindtextdomain(domain, dir);
         bind_textdomain_codeset(domain, "UTF-8");
         domains_.insert(domain);
-        FCITX_LOG(Debug) << "Add gettext domain " << domain << " at " << dir;
+        FCITX_DEBUG() << "Add gettext domain " << domain << " at " << dir;
     }
 
 private:
@@ -47,8 +52,8 @@ FCITXUTILS_EXPORT std::string translateCtx(const char *ctx,
 
 FCITXUTILS_EXPORT const char *translateCtx(const char *ctx, const char *s) {
     auto str = stringutils::concat(ctx, "\004", s);
-    auto p = str.c_str();
-    auto result = ::gettext(str.c_str());
+    const auto *p = str.c_str();
+    const auto *result = ::gettext(str.c_str());
     if (p == result) {
         return s;
     }
@@ -75,8 +80,8 @@ FCITXUTILS_EXPORT const char *
 translateDomainCtx(const char *domain, const char *ctx, const char *s) {
     gettextManager.addDomain(domain);
     auto str = stringutils::concat(ctx, "\004", s);
-    auto p = str.c_str();
-    auto result = ::dgettext(domain, p);
+    const auto *p = str.c_str();
+    const auto *result = ::dgettext(domain, p);
     if (p == result) {
         return s;
     }

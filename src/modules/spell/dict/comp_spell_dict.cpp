@@ -1,40 +1,27 @@
-//
-// Copyright (C) 2012~2012 by Yichao Yu
-// yyc1992@gmail.com
-// Copyright (C) 2017~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2012-2012 Yichao Yu <yyc1992@gmail.com>
+ * SPDX-FileCopyrightText: 2017-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #if defined(__linux__) || defined(__GLIBC__)
 #include <endian.h>
 #else
 #include <sys/endian.h>
 #endif
-#include "fcitx-utils/fs.h"
-#include "fcitx-utils/unixfd.h"
 #include <cstring>
 #include <functional>
+#include "fcitx-utils/fs.h"
+#include "fcitx-utils/unixfd.h"
 
 using namespace fcitx;
 
@@ -46,8 +33,9 @@ static int compile_dict(int ifd, int ofd) {
     uint32_t wcount = 0;
     char *p;
     char *ifend;
-    if (fstat(ifd, &istat_buf) == -1)
+    if (fstat(ifd, &istat_buf) == -1) {
         return 1;
+    }
 
     auto unmap = [&istat_buf](void *p) {
         if (p && p != MAP_FAILED) {
@@ -72,8 +60,9 @@ static int compile_dict(int ifd, int ofd) {
         long int ceff;
         uint16_t ceff_buff;
         ceff = strtol(p, &p, 10);
-        if (*p != ' ')
+        if (*p != ' ') {
             return 1;
+        }
         ceff_buff = htole16(ceff > UINT16_MAX ? UINT16_MAX : ceff);
         fs::safeWrite(ofd, &ceff_buff, sizeof(uint16_t));
         start = ++p;

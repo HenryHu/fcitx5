@@ -1,29 +1,17 @@
-//
-// Copyright (C) 2020~2020 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2020-2020 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include "emoji.h"
-#include "../../im/keyboard/xmlparser.h"
-#include "config.h"
 #include "fcitx-utils/charutils.h"
 #include "fcitx-utils/misc_p.h"
 #include "fcitx-utils/stringutils.h"
 #include "fcitx-utils/utf8.h"
 #include "fcitx/addonfactory.h"
+#include "../../im/keyboard/xmlparser.h"
+#include "config.h"
 
 namespace fcitx {
 class EmojiParser : public XMLParser {
@@ -58,14 +46,17 @@ public:
         auto tokens = stringutils::split(temp, "|");
         std::transform(tokens.begin(), tokens.end(), tokens.begin(),
                        stringutils::trim);
-        for (auto token : tokens) {
-            if (token.empty() || filter_(token)) {
+        for (const auto &token : tokens) {
+            if (token.empty()) {
+                continue;
+            }
+            if (filter_ && filter_(token)) {
                 continue;
             }
             auto &emojis = emojiMap_[token];
             // Certain word has a very general meaning and has tons of matches,
             // keep only 1 or 2 for specific.
-            if (emojis.size() == 0 ||
+            if (emojis.empty() ||
                 (emojis.size() == 1 && emojis[0] != currentEmoji_)) {
                 emojis.push_back(currentEmoji_);
             }
@@ -85,6 +76,11 @@ Emoji::Emoji() {}
 
 Emoji::~Emoji() {}
 
+bool Emoji::check(const std::string &language, bool fallbackToEn) {
+    const EmojiMap *emojiMap = loadEmoji(language, fallbackToEn);
+    return emojiMap;
+}
+
 const std::vector<std::string> &Emoji::query(const std::string &language,
                                              const std::string &key,
                                              bool fallbackToEn) {
@@ -94,11 +90,32 @@ const std::vector<std::string> &Emoji::query(const std::string &language,
         return emptyEmoji;
     }
 
-    if (auto result = findValue(*emojiMap, key)) {
+    if (const auto *result = findValue(*emojiMap, key)) {
         return *result;
     }
 
     return emptyEmoji;
+}
+
+void Emoji::prefix(
+    const std::string &language, const std::string &key, bool fallbackToEn,
+    const std::function<bool(const std::string &,
+                             const std::vector<std::string> &)> &collector) {
+    const EmojiMap *emojiMap = loadEmoji(language, fallbackToEn);
+
+    if (!emojiMap) {
+        return;
+    }
+    auto start = emojiMap->lower_bound(key);
+    auto end = emojiMap->end();
+    for (; start != end; start++) {
+        if (!stringutils::startsWith(start->first, key)) {
+            break;
+        }
+        if (!collector(start->first, start->second)) {
+            break;
+        }
+    }
 }
 
 namespace {
@@ -109,12 +126,21 @@ bool noSpace(const std::string &str) {
 
 const EmojiMap *Emoji::loadEmoji(const std::string &language,
                                  bool fallbackToEn) {
-    std::string lang = language;
-    auto emojiMap = findValue(langToEmojiMap_, lang);
+    // This is to match the file in CLDR.
+    static const std::unordered_map<std::string, std::string> languageMap = {
+        {"zh_TW", "zh_Hant"}, {"zh_CN", "zh"}, {"zh_HK", "zh_Hant_HK"}};
+
+    std::string lang;
+    if (const auto *mapped = findValue(languageMap, language)) {
+        lang = *mapped;
+    } else {
+        lang = language;
+    }
+    auto *emojiMap = findValue(langToEmojiMap_, lang);
     if (!emojiMap) {
+        // These are having aspell/hunspell/ispell available.
         static const std::unordered_map<
             std::string, std::function<bool(const std::string &)>>
-            // These are having aspell/hunspell/ispell available.
             filterMap = {{"en", noSpace},
                          {"de", noSpace},
                          {"es", noSpace},
@@ -145,24 +171,24 @@ const EmojiMap *Emoji::loadEmoji(const std::string &language,
                          {"zh_Hant", [](const std::string &str) {
                               return utf8::lengthValidated(str) > 2;
                           }}};
-        auto filter = findValue(filterMap, lang);
-        if (!filter) {
+        const auto *filter = findValue(filterMap, lang);
+        const auto file = stringutils::joinPath(
+            CLDR_DIR, "/common/annotations", stringutils::concat(lang, ".xml"));
+        EmojiParser parser(filter ? *filter : nullptr);
+        if (parser.parse(file)) {
+            emojiMap = &(langToEmojiMap_[lang] = std::move(parser.emojiMap_));
+            FCITX_INFO() << "Trying to load emoji for " << lang << " from "
+                         << file << ": " << emojiMap->size()
+                         << " entry(s) loaded.";
+        } else {
             if (!fallbackToEn) {
                 return nullptr;
-            } else {
-                filter = findValue(filterMap, "en");
-                lang = "en";
+            }
+            const auto *enMap = loadEmoji("en", false);
+            if (enMap) {
+                emojiMap = &(langToEmojiMap_[lang] = *enMap);
             }
         }
-        const auto file =
-            stringutils::joinPath(CLDR_EMOJI_ANNOTATION_PREFIX,
-                                  "/share/unicode/cldr/common/annotations",
-                                  stringutils::concat(lang, ".xml"));
-        EmojiParser parser(*filter);
-        parser.parse(file);
-        emojiMap = &(langToEmojiMap_[lang] = std::move(parser.emojiMap_));
-        FCITX_INFO() << "Trying to load emoji for " << lang << " from " << file
-                     << ": " << emojiMap->size() << " entry(s) loaded.";
     }
 
     return emojiMap;

@@ -1,35 +1,24 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "standardpath.h"
-#include "config.h"
-#include "fs.h"
-#include "stringutils.h"
-#include <algorithm>
 #include <dirent.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
+#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include "config.h"
+#include "fs.h"
+#include "stringutils.h"
 
 namespace fcitx {
 
@@ -115,7 +104,7 @@ public:
     FCITX_INLINE_DEFINE_DEFAULT_DTOR_AND_COPY(StandardPathPrivate)
 
     // http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    std::string defaultPath(const char *env, const char *defaultPath) {
+    static std::string defaultPath(const char *env, const char *defaultPath) {
         char *cdir = getenv(env);
         std::string dir;
         if (cdir && cdir[0]) {
@@ -154,9 +143,9 @@ public:
         return dir;
     }
 
-    std::vector<std::string> defaultPaths(const char *env,
-                                          const char *defaultPath,
-                                          const char *fcitxPath) {
+    static std::vector<std::string> defaultPaths(const char *env,
+                                                 const char *defaultPath,
+                                                 const char *fcitxPath) {
         std::vector<std::string> dirs;
 
         const char *dir = getenv(env);
@@ -198,7 +187,6 @@ public:
             return pkgdataHome_;
         case StandardPath::Type::Cache:
             return cacheHome_;
-            break;
         case StandardPath::Type::Runtime:
             return runtimeDir_;
         default:
@@ -242,7 +230,14 @@ StandardPath::StandardPath(bool skipFcitxPath)
 StandardPath::~StandardPath() {}
 
 const StandardPath &StandardPath::global() {
-    static StandardPath globalPath;
+    const char *skip = getenv("SKIP_FCITX_PATH");
+    bool skipFcitx = false;
+    if (skip && skip[0] &&
+        (strcmp(skip, "True") == 0 || strcmp(skip, "true") == 0 ||
+         strcmp(skip, "1") == 0)) {
+        skipFcitx = true;
+    }
+    static StandardPath globalPath(skipFcitx);
     return globalPath;
 }
 
@@ -280,12 +275,6 @@ std::string StandardPath::fcitxPath(const char *path, const char *subPath) {
     return stringutils::joinPath(fcitxPath(path), subPath);
 }
 
-void closedir0(DIR *dir) {
-    if (dir) {
-        closedir(dir);
-    }
-}
-
 std::string StandardPath::userDirectory(Type type) const {
     FCITX_D();
     return d->userPath(type);
@@ -298,7 +287,8 @@ std::vector<std::string> StandardPath::directories(Type type) const {
 
 void StandardPath::scanDirectories(
     Type type,
-    std::function<bool(const std::string &path, bool user)> scanner) const {
+    const std::function<bool(const std::string &path, bool user)> &scanner)
+    const {
     FCITX_D();
     std::string userDir = d->userPath(type);
     std::vector<std::string> list = d->directories(type);
@@ -306,7 +296,7 @@ void StandardPath::scanDirectories(
         return;
     }
 
-    size_t len = (!userDir.empty() ? 1 : 0) + (list.size() ? list.size() : 0);
+    size_t len = (!userDir.empty() ? 1 : 0) + list.size();
 
     for (size_t i = 0; i < len; i++) {
         bool isUser = false;
@@ -327,14 +317,12 @@ void StandardPath::scanDirectories(
 
 void StandardPath::scanFiles(
     Type type, const std::string &path,
-    std::function<bool(const std::string &fileName, const std::string &dir,
-                       bool user)>
-        scanner) const {
+    const std::function<bool(const std::string &fileName,
+                             const std::string &dir, bool user)> &scanner)
+    const {
     auto scanDir = [scanner](const std::string &fullPath, bool isUser) {
-        std::unique_ptr<DIR, decltype(closedir0) *> scopedDir{
-            opendir(fullPath.c_str()), closedir0};
-        if (scopedDir) {
-            auto dir = scopedDir.get();
+        UniqueCPtr<DIR, closedir> scopedDir{opendir(fullPath.c_str())};
+        if (auto *dir = scopedDir.get()) {
             struct dirent *drt;
             while ((drt = readdir(dir)) != nullptr) {
                 if (strcmp(drt->d_name, ".") == 0 ||
@@ -487,8 +475,7 @@ StandardPath::openUserTemp(Type type, const std::string &pathOrig) const {
         fullPathOrig = constructPath(dirPath, pathOrig);
     }
     if (fs::makePath(fs::dirName(fullPath))) {
-        std::unique_ptr<char, decltype(&std::free)> cPath(
-            strdup(fullPath.c_str()), &std::free);
+        auto cPath = makeUniqueCPtr(strdup(fullPath.c_str()));
         int fd = mkstemp(cPath.get());
         if (fd >= 0) {
             return {fd, fullPathOrig, cPath.get()};
@@ -498,18 +485,19 @@ StandardPath::openUserTemp(Type type, const std::string &pathOrig) const {
 }
 
 bool StandardPath::safeSave(Type type, const std::string &pathOrig,
-                            std::function<bool(int)> callback) const {
-    auto &standardPath = StandardPath::global();
-    auto file = standardPath.openUserTemp(type, pathOrig);
-    if (file.fd() < 0) {
+                            const std::function<bool(int)> &callback) const {
+    auto file = openUserTemp(type, pathOrig);
+    if (!file.isValid()) {
         return false;
     }
     try {
-        return callback(file.fd());
+        if (callback(file.fd())) {
+            return true;
+        }
     } catch (const std::exception &) {
-        file.removeTemp();
-        return false;
     }
+    file.removeTemp();
+    return false;
 }
 
 StandardPathFileMap StandardPath::multiOpenFilter(
@@ -520,7 +508,7 @@ StandardPathFileMap StandardPath::multiOpenFilter(
     StandardPathFileMap result;
     scanFiles(type, path,
               [&result, flags, &filter](const std::string &path,
-                                        const std::string dir, bool isUser) {
+                                        const std::string &dir, bool isUser) {
                   if (!result.count(path) && filter(path, dir, isUser)) {
                       auto fullPath = constructPath(dir, path);
                       int fd = ::open(fullPath.c_str(), flags);
@@ -544,7 +532,7 @@ StandardPathFilesMap StandardPath::multiOpenAllFilter(
     StandardPathFilesMap result;
     scanFiles(type, path,
               [&result, flags, &filter](const std::string &path,
-                                        const std::string dir, bool isUser) {
+                                        const std::string &dir, bool isUser) {
                   if (filter(path, dir, isUser)) {
                       auto fullPath = constructPath(dir, path);
                       int fd = ::open(fullPath.c_str(), flags);

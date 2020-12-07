@@ -1,29 +1,17 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_INSTRUSIVELIST_H_
 #define _FCITX_UTILS_INSTRUSIVELIST_H_
 
-#include "misc.h"
 #include <array>
 #include <cassert>
 #include <iterator>
 #include <type_traits>
+#include "misc.h"
 
 namespace fcitx {
 
@@ -71,7 +59,7 @@ protected:
         // clear current one.
         removeAll();
         while (other.size_) {
-            auto node = other.root_.prev_;
+            auto *node = other.root_.prev_;
             // pop_back
             other.remove(other.root_.prev_);
             // push_front
@@ -102,8 +90,8 @@ protected:
     }
 
     void remove(IntrusiveListNode *pos) noexcept {
-        auto next_ = pos->next_;
-        auto prev_ = pos->prev_;
+        auto *next_ = pos->next_;
+        auto *prev_ = pos->prev_;
         prev_->next_ = next_;
         next_->prev_ = prev_;
 
@@ -219,7 +207,7 @@ public:
     }
 
     IntrusiveListIterator operator++(int) {
-        auto old = node;
+        auto *old = node;
         ++(*this);
         return {old, *nodeGetter};
     }
@@ -275,7 +263,6 @@ public:
 
     const_reference back() const {
         return *const_iterator{root_.prev(), nodeGetter};
-        ;
     }
 
     iterator iterator_to(reference value) {

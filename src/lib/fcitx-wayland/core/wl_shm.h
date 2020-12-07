@@ -1,10 +1,9 @@
 #ifndef WL_SHM
 #define WL_SHM
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlShmPool;
 class WlShm final {
 public:
@@ -28,11 +27,10 @@ private:
     fcitx::Signal<void(uint32_t)> formatSignal_;
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_shm, decltype(&destructor)> data_;
+    UniqueCPtr<wl_shm, &destructor> data_;
 };
 static inline wl_shm *rawPointer(WlShm *p) {
     return p ? static_cast<wl_shm *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

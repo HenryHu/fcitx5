@@ -1,28 +1,15 @@
-//
-// Copyright (C) 2016~2016 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2016-2016 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "servicewatcher.h"
-#include "../trackableobject.h"
 #include <unordered_map>
+#include "../trackableobject.h"
 
-namespace fcitx {
-namespace dbus {
+namespace fcitx::dbus {
 
 class ServiceWatcherPrivate : public TrackableObject<ServiceWatcherPrivate> {
 public:
@@ -48,9 +35,9 @@ public:
                   auto querySlot = bus_->serviceOwnerAsync(
                       key, 0, [this, key](Message &msg) {
                           // Key itself may be gone later, put it on the stack.
-                          std::string pivotKey = key;
+                          const std::string &pivotKey = key;
                           auto protector = watch();
-                          std::string newName = "";
+                          std::string newName;
                           if (msg.type() != dbus::MessageType::Error) {
                               msg >> newName;
                           }
@@ -59,7 +46,7 @@ public:
                           }
                           // "this" maybe deleted as well because it's a member
                           // in lambda.
-                          if (auto that = protector.get()) {
+                          if (auto *that = protector.get()) {
                               that->querySlots_.erase(pivotKey);
                           }
                           return false;
@@ -93,9 +80,8 @@ std::unique_ptr<HandlerTableEntry<ServiceWatcherCallback>>
 ServiceWatcher::watchService(const std::string &name,
                              ServiceWatcherCallback callback) {
     FCITX_D();
-    return d->watcherMap_.add(name, callback);
+    return d->watcherMap_.add(name, std::move(callback));
 }
 
 ServiceWatcher::~ServiceWatcher() {}
-} // namespace dbus
-} // namespace fcitx
+} // namespace fcitx::dbus

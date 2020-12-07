@@ -1,21 +1,9 @@
-//
-// Copyright (C) 2015~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #ifndef _FCITX_UTILS_UTF8_H_
 #define _FCITX_UTILS_UTF8_H_
 
@@ -24,10 +12,11 @@
 /// \file
 /// \brief C++ Utility functions for handling utf8 strings.
 
-#include "fcitxutils_export.h"
+#include <stdexcept>
+#include <string>
 #include <fcitx-utils/cutf8.h>
 #include <fcitx-utils/misc.h>
-#include <string>
+#include "fcitxutils_export.h"
 
 namespace fcitx {
 namespace utf8 {
@@ -72,7 +61,6 @@ inline size_t lengthValidated(Iter start, Iter end) {
 template <typename T>
 inline size_t lengthValidated(const T &s) {
     return lengthValidated(std::begin(s), std::end(s));
-    ;
 }
 
 /// \brief Check if the string iterator range is valid utf8 string
@@ -185,6 +173,12 @@ public:
     pointer operator->() const { return &currentChar_; }
 
     std::pair<Iter, Iter> charRange() const { return {iter_, next_}; }
+
+    size_t charLength() const { return std::distance(iter_, next_); }
+
+    std::string_view view() const {
+        return std::string_view{&*iter_, charLength()};
+    }
 
     UTF8CharIterator &operator++() {
         iter_ = next_;

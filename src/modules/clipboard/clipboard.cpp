@@ -1,33 +1,22 @@
-//
-// Copyright (C) 2012~2017 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2012-2017 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 #include <fcntl.h>
 
-#include "clipboard.h"
 #include "fcitx-config/iniparser.h"
 #include "fcitx-utils/i18n.h"
 #include "fcitx-utils/inputbuffer.h"
 #include "fcitx-utils/log.h"
+#include "fcitx-utils/misc_p.h"
 #include "fcitx-utils/utf8.h"
 #include "fcitx/addonmanager.h"
 #include "fcitx/inputcontext.h"
 #include "fcitx/inputcontextmanager.h"
 #include "fcitx/inputpanel.h"
+#include "clipboard.h"
 
 namespace fcitx {
 
@@ -91,8 +80,8 @@ std::string ClipboardSelectionStrip(const std::string &text) {
 
 class ClipboardCandidateWord : public CandidateWord {
 public:
-    ClipboardCandidateWord(Clipboard *q, const std::string str)
-        : CandidateWord(), q_(q), str_(str) {
+    ClipboardCandidateWord(Clipboard *q, const std::string &str)
+        : q_(q), str_(str) {
         Text text;
         text.append(ClipboardSelectionStrip(str));
         setText(std::move(text));
@@ -100,7 +89,7 @@ public:
 
     void select(InputContext *inputContext) const override {
         auto commit = str_;
-        auto state = inputContext->propertyFor(&q_->factory());
+        auto *state = inputContext->propertyFor(&q_->factory());
         state->reset(inputContext);
         inputContext->commitString(commit);
     }
@@ -139,7 +128,7 @@ Clipboard::Clipboard(Instance *instance)
         FcitxKey_6, FcitxKey_7, FcitxKey_8, FcitxKey_9, FcitxKey_0,
     };
 
-    KeyStates states = KeyState::None;
+    KeyStates states = KeyState::NoState;
 
     for (auto sym : syms) {
         selectionKeys_.emplace_back(sym, states);
@@ -160,7 +149,7 @@ Clipboard::Clipboard(Instance *instance)
 
     auto reset = [this](Event &event) {
         auto &icEvent = static_cast<InputContextEvent &>(event);
-        auto state = icEvent.inputContext()->propertyFor(&factory_);
+        auto *state = icEvent.inputContext()->propertyFor(&factory_);
         if (state->enabled_) {
             state->reset(icEvent.inputContext());
         }
@@ -176,8 +165,8 @@ Clipboard::Clipboard(Instance *instance)
         EventType::InputContextKeyEvent, EventWatcherPhase::PreInputMethod,
         [this](Event &event) {
             auto &keyEvent = static_cast<KeyEvent &>(event);
-            auto inputContext = keyEvent.inputContext();
-            auto state = inputContext->propertyFor(&factory_);
+            auto *inputContext = keyEvent.inputContext();
+            auto *state = inputContext->propertyFor(&factory_);
             if (!state->enabled_) {
                 return;
             }
@@ -198,17 +187,20 @@ Clipboard::Clipboard(Instance *instance)
                     }
                     return;
                 }
-                if (keyEvent.key().check(FcitxKey_space)) {
+                if (keyEvent.key().check(FcitxKey_space) ||
+                    keyEvent.key().check(FcitxKey_Return)) {
                     keyEvent.accept();
-                    if (candidateList->size() > 0) {
-                        candidateList->candidate(0).select(inputContext);
+                    if (candidateList->size() > 0 &&
+                        candidateList->cursorIndex() >= 0) {
+                        candidateList->candidate(candidateList->cursorIndex())
+                            .select(inputContext);
                     }
                     return;
                 }
 
                 if (keyEvent.key().checkKeyList(
                         instance_->globalConfig().defaultPrevPage())) {
-                    auto pageable = candidateList->toPageable();
+                    auto *pageable = candidateList->toPageable();
                     if (!pageable->hasPrev()) {
                         if (pageable->usedNextBefore()) {
                             event.accept();
@@ -227,6 +219,24 @@ Clipboard::Clipboard(Instance *instance)
                         instance_->globalConfig().defaultNextPage())) {
                     keyEvent.filterAndAccept();
                     candidateList->toPageable()->next();
+                    inputContext->updateUserInterface(
+                        UserInterfaceComponent::InputPanel);
+                    return;
+                }
+
+                if (keyEvent.key().checkKeyList(
+                        instance_->globalConfig().defaultPrevCandidate())) {
+                    keyEvent.filterAndAccept();
+                    candidateList->toCursorMovable()->prevCandidate();
+                    inputContext->updateUserInterface(
+                        UserInterfaceComponent::InputPanel);
+                    return;
+                }
+
+                if (keyEvent.key().checkKeyList(
+                        instance_->globalConfig().defaultNextCandidate())) {
+                    keyEvent.filterAndAccept();
+                    candidateList->toCursorMovable()->nextCandidate();
                     inputContext->updateUserInterface(
                         UserInterfaceComponent::InputPanel);
                     return;
@@ -252,7 +262,7 @@ Clipboard::Clipboard(Instance *instance)
 Clipboard::~Clipboard() {}
 
 void Clipboard::trigger(InputContext *inputContext) {
-    auto state = inputContext->propertyFor(&factory_);
+    auto *state = inputContext->propertyFor(&factory_);
     state->enabled_ = true;
     updateUI(inputContext);
 }
@@ -260,7 +270,7 @@ void Clipboard::updateUI(InputContext *inputContext) {
     inputContext->inputPanel().reset();
 
     auto candidateList = std::make_unique<CommonCandidateList>();
-    candidateList->setPageSize(config_.numOfEntries.value());
+    candidateList->setPageSize(instance_->globalConfig().defaultPageSize());
 
     // Append first item from history_.
     auto iter = history_.begin();
@@ -295,6 +305,8 @@ void Clipboard::updateUI(InputContext *inputContext) {
     if (!candidateList->totalSize()) {
         Text auxDown(_("No clipboard history."));
         inputContext->inputPanel().setAuxDown(auxDown);
+    } else {
+        candidateList->setGlobalCursorIndex(0);
     }
     inputContext->inputPanel().setCandidateList(std::move(candidateList));
     inputContext->inputPanel().setAuxUp(auxUp);
@@ -322,22 +334,19 @@ void Clipboard::clipboardChanged(const std::string &name) {
     clipboardCallback_ = xcb_->call<IXCBModule::convertSelection>(
         name, "CLIPBOARD", "",
         [this](xcb_atom_t, const char *data, size_t length) {
-            if (data) {
-                std::string str(data, length);
-                history_.push_front(std::move(str));
-                auto iter = history_.begin();
-                ++iter;
-                // Insert and remove duplicates.
-                for (; iter != history_.end(); iter++) {
-                    if (history_.front() == *iter) {
-                        history_.erase(iter);
-                        break;
-                    }
-                }
-                while (history_.size() && static_cast<int>(history_.size()) >
-                                              config_.numOfEntries.value()) {
-                    history_.pop_back();
-                }
+            if (!data || !length) {
+                return;
+            }
+            std::string str(data, length);
+            if (!utf8::validate(str)) {
+                return;
+            }
+            if (!history_.pushFront(str)) {
+                history_.moveToTop(str);
+            }
+            while (!history_.empty() && static_cast<int>(history_.size()) >
+                                            config_.numOfEntries.value()) {
+                history_.pop();
             }
             clipboardCallback_.reset();
         });

@@ -1,10 +1,9 @@
 #ifndef WL_DATA_DEVICE_MANAGER
 #define WL_DATA_DEVICE_MANAGER
-#include "fcitx-utils/signals.h"
 #include <memory>
 #include <wayland-client.h>
-namespace fcitx {
-namespace wayland {
+#include "fcitx-utils/signals.h"
+namespace fcitx::wayland {
 class WlDataDevice;
 class WlDataSource;
 class WlSeat;
@@ -30,11 +29,10 @@ private:
     static void destructor(wl_data_device_manager *);
     uint32_t version_;
     void *userData_ = nullptr;
-    std::unique_ptr<wl_data_device_manager, decltype(&destructor)> data_;
+    UniqueCPtr<wl_data_device_manager, &destructor> data_;
 };
 static inline wl_data_device_manager *rawPointer(WlDataDeviceManager *p) {
     return p ? static_cast<wl_data_device_manager *>(*p) : nullptr;
 }
-} // namespace wayland
-} // namespace fcitx
+} // namespace fcitx::wayland
 #endif

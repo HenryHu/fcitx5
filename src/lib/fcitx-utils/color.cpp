@@ -1,29 +1,17 @@
-//
-// Copyright (C) 2015~2015 by CSSlayer
-// wengxt@gmail.com
-//
-// This library is free software; you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as
-// published by the Free Software Foundation; either version 2.1 of the
-// License, or (at your option) any later version.
-//
-// This library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library; see the file COPYING. If not,
-// see <http://www.gnu.org/licenses/>.
-//
+/*
+ * SPDX-FileCopyrightText: 2015-2015 CSSlayer <wengxt@gmail.com>
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ */
 
 #include "color.h"
-#include "charutils.h"
-#include "stringutils.h"
 #include <array>
 #include <climits>
 #include <cmath>
 #include <cstdio>
+#include "charutils.h"
+#include "stringutils.h"
 
 namespace fcitx {
 static unsigned short roundColor(unsigned short c) {
@@ -59,7 +47,8 @@ static inline unsigned short to_hex_digit(char hi, char lo) {
     return dhi * 16 + dlo;
 }
 
-Color::Color(ushort r, ushort g, ushort b, ushort alpha)
+Color::Color(unsigned short r, unsigned short g, unsigned short b,
+             unsigned short alpha)
     : red_(extendColor(r)), green_(extendColor(g)), blue_(extendColor(b)),
       alpha_(extendColor(alpha)) {}
 
